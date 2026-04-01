@@ -1,0 +1,5 @@
+{# templates/homeimprove/contractors/_jsonld_index.html #}
+{% block extra_head %}
+    {{ block.super }}
+    <script type="application/ld+json">{{ contractors_index_jsonld|json_script:"ci"|safe }}</script>
+{% endblock %}

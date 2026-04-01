@@ -1,0 +1,166 @@
+{% extends "vuexy_base.html" %}
+{% load static %}
+{% block title %}{{ form.instance.pk|yesno:"Edit Estimate,New Estimate" }}{% endblock %}
+{% block content %}
+    <div class="container-xxl py-4">
+        <form method="post">
+            {% csrf_token %}
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">{{ form.instance.pk|yesno:"Edit Estimate,New Estimate" }}</h4>
+                <div class="d-flex gap-2">
+                    <a class="btn btn-outline-secondary"
+                       href="{% url 'estimating:estimate-list' %}">Back</a>
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </div>
+            </div>
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Project</label>
+                    {{ form.project }}
+                    {{ form.project.errors }}
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Version</label>
+                    {{ form.version }}
+                    {{ form.version.errors }}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    {{ form.status }}
+                    {{ form.status.errors }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Tax Rate</label>
+                    {{ form.tax_rate }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Margin %</label>
+                    {{ form.margin_pct }}
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Notes</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+            <hr class="my-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Line Items</h5>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="add-line">Add line</button>
+            </div>
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="lines-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 12rem;">Category</th>
+                                <th>Description</th>
+                                <th style="width: 8rem;">Qty</th>
+                                <th style="width: 6rem;">Unit</th>
+                                <th style="width: 10rem;" class="text-end">Unit Cost</th>
+                                <th style="width: 8rem;" class="text-center">Tax Exempt</th>
+                                <th style="width: 4rem;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{ formset.management_form }}
+                            {% for f in formset.forms %}
+                                <tr class="line-row">
+                                    <td>{{ f.category }}{{ f.category.errors }}</td>
+                                    <td>{{ f.description }}{{ f.description.errors }}</td>
+                                    <td>{{ f.quantity }}{{ f.quantity.errors }}</td>
+                                    <td>{{ f.unit }}{{ f.unit.errors }}</td>
+                                    <td class="text-end">{{ f.unit_cost }}{{ f.unit_cost.errors }}</td>
+                                    <td class="text-center">{{ f.tax_exempt }}</td>
+                                    <td>
+                                        {% if f.instance.pk %}
+                                            {{ f.DELETE }}
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    type="button"
+                                                    onclick="markDelete(this)">×</button>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    type="button"
+                                                    onclick="removeRow(this)">×</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer text-end">
+                    <button class="btn btn-primary" type="submit">Save Estimate</button>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock %}
+{% block body_extra %}
+    <script>
+(function(){
+  const table = document.getElementById('lines-table').querySelector('tbody');
+  const addBtn = document.getElementById('add-line');
+  const totalForms = document.getElementById('{{ formset.prefix }}-TOTAL_FORMS');
+  const emptyRowHtml = `{% filter escapejs %}
+<tr class="line-row">
+  <td>__CATEGORY__</td>
+  <td>__DESCRIPTION__</td>
+  <td>__QUANTITY__</td>
+  <td>__UNIT__</td>
+  <td class="text-end">__UNIT_COST__</td>
+  <td class="text-center">__TAX_EXEMPT__</td>
+  <td><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+</tr>
+{% endfilter %}`;
+
+  // build a blank form by cloning the last empty form’s HTML
+  function templateRow(index) {
+    let html = `{{ formset.empty_form.as_p|escapejs }}`;
+    // crude but effective field extraction into table cells:
+    // we’ll render inputs in a p-wrap; here we map them into cells.
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+
+    const get = (sel) => wrap.querySelector(sel)?.outerHTML || '';
+    const cat = get('select[name$="category"]');
+    const desc = get('input[name$="description"]');
+    const qty = get('input[name$="quantity"]');
+    const unit = get('input[name$="unit"]');
+    const unitCost = get('input[name$="unit_cost"]');
+    const tax = get('input[type="checkbox"][name$="tax_exempt"]');
+
+    let row = emptyRowHtml
+      .replace('__CATEGORY__', cat)
+      .replace('__DESCRIPTION__', desc)
+      .replace('__QUANTITY__', qty)
+      .replace('__UNIT__', unit)
+      .replace('__UNIT_COST__', unitCost)
+      .replace('__TAX_EXEMPT__', tax);
+
+    // replace __prefix__ with index
+    row = row.replaceAll('__prefix__', index);
+    return row;
+  }
+
+  addBtn?.addEventListener('click', function(){
+    const idx = parseInt(totalForms.value, 10);
+    table.insertAdjacentHTML('beforeend', templateRow(idx));
+    totalForms.value = idx + 1;
+  });
+
+  window.removeRow = function(btn){
+    const tr = btn.closest('tr');
+    tr?.remove();
+    // NOTE: not decrementing TOTAL_FORMS; acceptable for quick-add rows.
+  };
+
+  window.markDelete = function(btn){
+    // When an existing row is removed, we tick its DELETE checkbox.
+    const tr = btn.closest('tr');
+    tr.querySelector('input[type=checkbox][name$="-DELETE"]').checked = true;
+    tr.style.opacity = 0.4;
+  };
+})();
+    </script>
+{% endblock %}

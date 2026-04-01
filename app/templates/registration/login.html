@@ -1,0 +1,108 @@
+{% extends "auth_base.html" %}
+{% load static %}
+{% load i18n %}
+{% block title %}Login - Pages{% endblock %}
+{% block vendor_css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/libs/@form-validation/form-validation.css' %}" />
+{% endblock vendor_css %}
+{% block vendor_js %}
+    {{ block.super }}
+    <script src="{% static 'vuexy/vendor/libs/@form-validation/popular.js' %}"></script>
+    <script src="{% static 'vuexy/vendor/libs/@form-validation/bootstrap5.js' %}"></script>
+    <script src="{% static 'vuexy/vendor/libs/@form-validation/auto-focus.js' %}"></script>
+{% endblock vendor_js %}
+{% block page_css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/css/pages/page-auth.css' %}" />
+{% endblock page_css %}
+{% block page_js %}
+    {{ block.super }}
+    <script src="{% static 'assets/js/pages-auth.js' %}"></script>
+    <script src="{% static 'assets/js/ui-popover.js' %}"></script>
+{% endblock page_js %}
+{% block content %}
+    <div class="authentication-wrapper authentication-cover">
+        <!-- Logo -->
+        <a href="/" class="app-brand auth-cover-brand">
+            {% include "partials/logo.html" with height=32 %}
+            <span class="app-brand-text demo text-heading fw-bold">DotSchools</span>
+        </a>
+        <!-- /Logo -->
+        <div class="authentication-inner row m-0">
+            <!-- Left illustration -->
+            <div class="d-none d-xl-flex col-xl-8 p-0">
+                <div class="auth-cover-bg d-flex justify-content-center align-items-center">
+                    <img src="{% static 'assets/img/illustrations/auth-login-illustration-light.png' %}"
+                         alt="auth-login-cover"
+                         class="my-5 auth-illustration"
+                         data-app-light-img="src/assets/img/illustrations/auth-ljogin-illustration-light.png"
+                         data-app-dark-img="src/assets/img/illustrations/auth-login-illustration-dark.png">
+                    <img src="{% static 'assets/img/illustrations/bg-shape-image-light.png' %}"
+                         alt="auth-login-cover"
+                         class="platform-bg"
+                         data-app-light-img="src/assets/img/illustrations/bg-shape-image-light.png"
+                         data-app-dark-img="src/assets/img/illustrations/bg-shape-image-dark.png">
+                </div>
+            </div>
+            <!-- Login column -->
+            <div class="d-flex col-12 col-xl-4 align-items-center authentication-bg p-sm-12 p-6">
+                <div class="w-px-400 mx-auto mt-12 pt-5">
+                    <h4 class="mb-1">Welcome to DotSchools! 👋</h4>
+                    <p class="mb-6">Please sign-in to your account and start the adventure</p>
+                    {% if messages %}
+                        {% for m in messages %}<div class="alert alert-{{ m.tags|default:'info' }} small">{{ m }}</div>{% endfor %}
+                    {% endif %}
+                    <form id="formAuthentication"
+                          class="mb-6"
+                          action="{% url 'login' %}"
+                          method="post"
+                          novalidate>
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ next }}">
+                        <div class="mb-6">
+                            <label for="id_username" class="form-label">Email or Username</label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="id_username"
+                                   name="username"
+                                   placeholder="Email/Username"
+                                   autofocus>
+                        </div>
+                        <div class="mb-6 form-password-toggle">
+                            <label class="form-label" for="id_password">Password</label>
+                            <div class="input-group input-group-merge has-validation">
+                                <input type="password"
+                                       id="id_password"
+                                       class="form-control"
+                                       name="password"
+                                       placeholder="············"
+                                       aria-describedby="password">
+                                <span class="input-group-text cursor-pointer"><i class="ti ti-eye-off"></i></span>
+                            </div>
+                        </div>
+                        <div class="my-8 d-flex justify-content-between">
+                            <div class="form-check mb-0 ms-2">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="remember-me"
+                                       name="remember">
+                                <label class="form-check-label" for="remember-me">Remember Me</label>
+                            </div>
+                            <a href="{% url 'forgot-password' %}">
+                                <p class="mb-0">Forgot Password?</p>
+                            </a>
+                        </div>
+                        <button class="btn btn-primary d-grid w-100" type="submit">Sign in</button>
+                    </form>
+                    <p class="text-center">
+                        <span>New on our platform?</span>
+                        <a href="{% url 'register' %}"><span>Create an account</span></a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

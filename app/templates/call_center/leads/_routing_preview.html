@@ -1,0 +1,67 @@
+<!-- _routing_preview.html -->
+<div class="card">
+  <div class="card-header">
+    <h5 class="card-title mb-0">Routing Preview</h5>
+  </div>
+  <!-- Card Body -->
+  <div class="card-body">
+    <!-- Predicted Tier -->
+    <p class="mb-2">
+      <strong>Predicted Tier:</strong>
+      <span class="badge bg-primary">{{ preview.tier }}</span>
+    </p>
+    <!-- Predicted Score -->
+    <p class="mb-2">
+      <strong>Predicted Score:</strong>
+      {{ preview.score }}
+    </p>
+    <!-- AI Lead Quality -->
+    <div class="mt-2">
+      <strong>AI Lead Quality:</strong>
+      {{ preview.ai_label }} ({{ preview.ai_score }}/100,
+      confidence {{ '%.0f' % (preview.ai_confidence * 100) }}%)
+    </div>
+    <!-- Estimated Lead Quality -->
+    <p class="mb-2">
+      <strong>Lead Quality:</strong>
+      <span class="badge bg-info">{{ preview.quality }}</span>
+    </p>
+
+    <p class="mb-3">
+      <strong>Matched Contractors:</strong>
+      {{ preview.matched_contractors }}
+    </p>
+
+    {% if preview.contractor_samples %}
+      <p class="mb-2"><strong>Sample Contractors:</strong></p>
+      <ul class="mb-3">
+        {% for c in preview.contractor_samples %}
+          <li>{{ c.name }} (Tier {{ c.tier }})</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if preview.explanations %}
+      <div class="mt-3">
+        <strong>Why this routing decision?</strong>
+        <ul class="mb-0">
+          {% for e in preview.explanations %}
+            <li>{{ e }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    {% if preview.alerts %}
+    <div class="alert alert-warning">
+      <strong>Alerts:</strong>
+      <ul class="mb-0">
+        {% for alert in preview.alerts %}
+        <li>{{ alert }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+  </div>
+</div>

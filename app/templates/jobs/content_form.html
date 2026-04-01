@@ -1,0 +1,45 @@
+{% extends "vuexy_base.html" %}
+{% block title %}Job Content{% endblock %}
+{% block content %}
+    <div class="card p-3">
+        <h5 class="mb-3">{{ content|default_if_none:"New Content" }}</h5>
+        <form method="post">
+            {% csrf_token %}
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label">Title</label>
+                    <input class="form-control"
+                           name="title"
+                           value="{{ content.title|default:title_prefill }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Source Title (from chart)</label>
+                    <input class="form-control"
+                           name="source_title"
+                           value="{{ content.source_title|default:title_prefill }}">
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Body</label>
+                    <textarea id="editor" name="body" rows="16">{{ content.body|default:'' }}</textarea>
+                </div>
+                <div class="col-12 d-flex align-items-center gap-2 mt-2">
+                    <label class="form-check">
+                        <input type="checkbox"
+                               class="form-check-input"
+                               name="published"
+                               {% if content and content.published %}checked{% endif %}>
+                        <span class="form-check-label">Published</span>
+                    </label>
+                    <button class="btn btn-primary ms-auto">Save</button>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock %}
+{% block body_extra %}
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js"
+            referrerpolicy="origin"></script>
+    <script>
+tinymce.init({ selector:'#editor', menubar:false, plugins:'link lists', toolbar:'undo redo | bold italic | bullist numlist | link' });
+    </script>
+{% endblock %}

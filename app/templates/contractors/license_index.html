@@ -1,0 +1,58 @@
+{# templates/contractors/license_index.html #}
+{% extends layout_path %}
+{% load static %}
+{% block title %}Contractor Licenses{% endblock %}
+{% block content %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Contractor Licenses</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label for="id_state" class="form-label">State</label>
+                    <select name="state" id="id_state" class="form-select">
+                        <option value="">All states</option>
+                        {% for st in states %}
+                            <option value="{{ st }}" {% if st == current_state %}selected{% endif %}>{{ st }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="id_q" class="form-label">Search licenses</label>
+                    <input type="text"
+                           name="q"
+                           id="id_q"
+                           class="form-control"
+                           placeholder="Search by name or code"
+                           value="{{ current_q }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+            {% if licenses %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>State</th>
+                            <th>License Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for license in licenses %}
+                            <tr>
+                                <td>{{ license.state }}</td>
+                                <td>
+                                    <a href="{% url 'contractors:contractor-license-detail' code=license.code %}">{{ license.name }}</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="mb-0">No contractor license pages are published yet.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

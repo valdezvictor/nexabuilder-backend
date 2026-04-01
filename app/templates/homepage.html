@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Homepage{% endblock %}
+{% block content %}
+    <h1>Welcome to {{ organization_name }}!</h1>
+    <p>
+        Visit us at <a href="{{ organization_url }}">{{ organization_name }}</a>
+    </p>
+    <p>Contact us at {{ contact_telephone }}</p>
+{% endblock content %}

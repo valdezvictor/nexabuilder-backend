@@ -1,0 +1,64 @@
+<div class="card mt-3">
+  <div class="card-header">
+    <h5 class="mb-0">Why You Received This Lead</h5>
+  </div>
+
+  <div class="card-body">
+
+    <!-- Routing Tier -->
+    <p>
+      <strong>Routing Tier:</strong>
+      {% if lead.routing_tier == "hot" %}
+        <span class="badge bg-danger">HOT</span>
+      {% elif lead.routing_tier == "warm" %}
+        <span class="badge bg-warning text-dark">WARM</span>
+      {% else %}
+        <span class="badge bg-secondary">COLD</span>
+      {% endif %}
+    </p>
+
+    <!-- Score -->
+    <p><strong>Lead Score:</strong> {{ lead.lead_score }}</p>
+
+    <!-- Latest Routing Log -->
+    {% if routing_logs %}
+      {% with log=routing_logs.0 %}
+        <p><strong>Routing Explanation:</strong> {{ log.reason }}</p>
+        {% if log.alerts %}
+          <p><strong>Alerts:</strong> {{ log.alerts }}</p>
+        {% endif %}
+      {% endwith %}
+    {% else %}
+      <p class="text-muted">No routing decisions logged yet.</p>
+    {% endif %}
+
+    <hr>
+
+    <!-- Contractor Match Factors -->
+    <h6 class="fw-bold">Match Factors</h6>
+      <!-- Assuming 'contractor_match' is passed in the context -->
+    <ul class="list-group">
+        <!-- Service Match -->
+      <li class="list-group-item">
+        <strong>Service Match:</strong>
+        {{ contractor_match.service_match|yesno:"Yes,No" }}
+      </li>
+        <!-- Location Match -->
+      <li class="list-group-item">
+        <strong>Location Match:</strong>
+        {{ contractor_match.location_distance }} miles away
+      </li>
+        <!-- Availability Match -->
+      <li class="list-group-item">
+        <strong>Availability Match:</strong>
+        {{ contractor_match.availability|yesno:"Available,Not Available" }}
+      </li>
+        <!-- New Fit Score Item -->
+      <li class="list-group-item">
+        <strong>Routing Fit Score:</strong> {{ contractor_match.fit_score }} / 100
+      </li>
+
+    </ul>
+
+  </div>
+</div>

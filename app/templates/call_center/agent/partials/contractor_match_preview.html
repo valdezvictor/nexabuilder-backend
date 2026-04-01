@@ -1,0 +1,37 @@
+<div class="card">
+  <div class="card-header">
+    <h4 class="card-title">Contractor Match Preview</h4>
+  </div>
+
+  <div class="card-body">
+
+    {% if matched_contractors %}
+      <ul class="list-group">
+
+        {% for item in matched_contractors %}
+          {% set c = item.contractor %}
+          <li class="list-group-item">
+
+            <div class="d-flex justify-content-between">
+              <strong>{{ c.business_name }}</strong>
+              <span class="badge bg-primary">{{ item.score }}</span>
+            </div>
+
+            <small class="text-muted">
+              ZIP: {{ c.postal_code }} |
+              Distance: {{ item.distance }} miles |
+              Internal: {{ "Yes" if c.is_internal else "No" }} |
+              Financing: {{ "Yes" if c.offers_financing else "No" }}
+            </small>
+
+          </li>
+        {% endfor %}
+
+      </ul>
+
+    {% else %}
+      <p>No contractors matched.</p>
+    {% endif %}
+
+  </div>
+</div>

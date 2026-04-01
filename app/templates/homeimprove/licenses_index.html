@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Contractor Licenses{% endblock %}
+{% block content %}
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="mb-0">Contractor Licenses</h3>
+        </div>
+        <form method="get" class="card card-body mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Search</label>
+                    <input type="text"
+                           name="q"
+                           value="{{ request.GET.q }}"
+                           class="form-control"
+                           placeholder="Name, city, license #">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">State</label>
+                    <select name="state" class="form-select">
+                        <option value="">All</option>
+                        {% for st in states %}
+                            <option value="{{ st.code }}"
+                                    {% if request.GET.state == st.code %}selected{% endif %}>{{ st.code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Trade</label>
+                    <select name="trade" class="form-select">
+                        <option value="">All</option>
+                        {% for t in trades %}
+                            <option value="{{ t.slug }}"
+                                    {% if request.GET.trade == t.slug %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All</option>
+                        {% for val,label in status_choices %}
+                            <option value="{{ val }}"
+                                    {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100">Filter</button>
+                </div>
+            </div>
+        </form>
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Contractor</th>
+                            <th>City</th>
+                            <th>State</th>
+                            <th>License #</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th>Trades</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lic in page_obj %}
+                            <tr>
+                                <td>{{ lic.contractor.name }}</td>
+                                <td>{{ lic.contractor.city|default:"—" }}</td>
+                                <td>{{ lic.state.code }}</td>
+                                <td>{{ lic.license_number }}</td>
+                                <td>{{ lic.license_type|default:"—" }}</td>
+                                <td>
+                                    <span class="badge bg-{% if lic.status == 'active' %}success{% elif lic.status == 'expired' %}secondary{% else %}warning{% endif %}">{{ lic.get_status_display }}</span>
+                                </td>
+                                <td>{{ lic.expires_on|date:"Y-m-d"|default:"—" }}</td>
+                                <td>
+                                    {% for t in lic.contractor.trades.all %}
+                                        <span class="badge bg-info me-1">{{ t.name }}</span>{% empty %}—
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No results.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if page_obj.has_other_pages %}
+                <div class="card-footer">
+                    <nav>
+                        <ul class="pagination mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.META.QUERY_STRING %}&{{ request.META.QUERY_STRING|cut:'page='|cut:'&' %}
+                                    {% endif %}
+                                ">&laquo;</a></li>
+                            {% endif %}
+                        <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.META.QUERY_STRING %}&{{ request.META.QUERY_STRING|cut:'page='|cut:'&' %}
+                            {% endif %}
+                        ">&raquo;</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+{% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+<!-- Lead Badge -->
+{% if lead.routing_tier == "hot" %}
+  <span class="badge bg-danger">HOT</span>
+{% elif lead.routing_tier == "warm" %}
+  <span class="badge bg-warning text-dark">WARM</span>
+{% else %}
+  <span class="badge bg-secondary">COLD</span>
+{% endif %}
+
+<!-- Routing Decision Reason Tooltip -->
+<span 
+  class="badge bg-light text-dark"
+  data-bs-toggle="tooltip"
+  title="{{ routing_logs.0.reason }}"
+>
+  Why?
+</span>

@@ -1,0 +1,53 @@
+<div id="verification-container">
+
+  {% if verification %}
+    <div class="alert alert-success mb-3">
+      Lead verified on {{ verification.verified_at.strftime("%Y-%m-%d %H:%M") }}
+    </div>
+  {% endif %}
+
+  <form 
+    hx-post="/call-center/leads/{{ lead.id }}/verify"
+    hx-target="#verification-container"
+    hx-swap="outerHTML"
+  >
+    <div class="mb-3">
+      <label class="form-label fw-bold">Verification Checklist</label>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="scope_confirmed" {% if verification and verification.scope_confirmed %}checked{% endif %}>
+        <label class="form-check-label">Scope Confirmed</label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="budget_confirmed" {% if verification and verification.budget_confirmed %}checked{% endif %}>
+        <label class="form-check-label">Budget Confirmed</label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="timeline_confirmed" {% if verification and verification.timeline_confirmed %}checked{% endif %}>
+        <label class="form-check-label">Timeline Confirmed</label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="access_confirmed" {% if verification and verification.access_confirmed %}checked{% endif %}>
+        <label class="form-check-label">Access Confirmed</label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="hazards_confirmed" {% if verification and verification.hazards_confirmed %}checked{% endif %}>
+        <label class="form-check-label">Hazards Checked</label>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">Notes</label>
+      <textarea class="form-control" name="notes" rows="4">{% if verification %}{{ verification.notes }}{% endif %}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      Save Verification
+    </button>
+  </form>
+
+</div>

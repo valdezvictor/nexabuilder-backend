@@ -1,0 +1,83 @@
+swagger: "2.0"
+info:
+  version: "1.0.0"
+  title: "DotSchools Job API"
+  description: "API for job searching and filtering in the DotSchools platform"
+host: "127.0.0.1:5001"
+schemes:
+  - "http"
+paths:
+  /login:
+    post:
+      summary: "User login to obtain JWT"
+      description: "Generates a JWT token for authentication."
+      responses:
+        '200':
+          description: "JWT token generated successfully."
+          schema:
+            type: object
+            properties:
+              access_token:
+                type: string
+  /api/jobs/agriculture:
+    get:
+      summary: "Fetch agriculture-related jobs"
+      description: "Fetch jobs filtered by title, location, salary, and job type."
+      parameters:
+        - in: query
+          name: title
+          type: string
+          required: true
+          description: "Job title to search for"
+        - in: query
+          name: location
+          type: string
+          required: true
+          description: "Location to filter jobs"
+        - in: query
+          name: salary_min
+          type: integer
+          required: false
+          description: "Minimum salary"
+        - in: query
+          name: salary_max
+          type: integer
+          required: false
+          description: "Maximum salary"
+        - in: query
+          name: job_type
+          type: string
+          required: false
+          description: "Type of job (full-time, part-time, etc.)"
+        - in: query
+          name: page
+          type: integer
+          default: 1
+          description: "Page number for pagination"
+        - in: query
+          name: page_size
+          type: integer
+          default: 10
+          description: "Number of results per page"
+      responses:
+        '200':
+          description: "List of filtered jobs"
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                job_id:
+                  type: integer
+                title:
+                  type: string
+                location:
+                  type: string
+                salary_min:
+                  type: integer
+                salary_max:
+                  type: integer
+        '400':
+          description: "Bad Request"
+        '500':
+          description: "Internal Server Error"

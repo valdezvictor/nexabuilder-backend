@@ -1,0 +1,435 @@
+{% extends "vuexy_base.html" %}
+{% load static %}
+{% block title %}Dashboard · DotSchools{% endblock %}
+{% block content %}
+    <script type="application/json" id="seriesByType">{{ series_by_type_json|default:"{}"|safe }}</script>
+    <script type="application/json" id="seriesTopTitles">{{ series_top_titles_json|default:"{}"|safe }}</script>
+    {# --- Quick Access cards --------------------------------------------------- #}
+    <div class="row g-4 mb-4">
+        <!-- eCommerce -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">eCommerce</h6>
+                        <small class="text-muted">Sales dashboard</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-primary"><i class="ti ti-chart-line"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="/ecommerce/"></a>
+            </div>
+        </div>
+        <!-- Call Center Board -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Call Center</h6>
+                        <small class="text-muted">Kanban board</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-info"><i class="ti ti-layout-kanban"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="/callcenter/board/"></a>
+            </div>
+        </div>
+        <!-- Jobs (UI Table) -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Jobs</h6>
+                        <small class="text-muted">UI table</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-success"><i class="ti ti-briefcase"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="/jobs/"></a>
+            </div>
+        </div>
+        <!-- Jobs (Search) -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Jobs Search</h6>
+                        <small class="text-muted">Apply / filters</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-warning"><i class="ti ti-search"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="/jobs/search/"></a>
+            </div>
+        </div>
+        <!-- Education -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Education</h6>
+                        <small class="text-muted">Resources</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-secondary"><i class="ti ti-school"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="/education/"></a>
+            </div>
+        </div>
+        <!-- Home Improvement -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Home Improvement</h6>
+                        <small class="text-muted">UI homepage</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-danger"><i class="ti ti-home"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="{% url 'estimating:estimate-list' %}"></a>
+            </div>
+        </div>
+        <!-- Clients / Advertisers -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Clients / Advertisers</h6>
+                        <small class="text-muted">User list</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-dark"><i class="ti ti-users"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="{% url 'leads:index' %}"></a>
+            </div>
+        </div>
+        <!-- Landing (marketing) -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="card h-100 hover-shadow">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">Marketing Landing</h6>
+                        <small class="text-muted">Front page</small>
+                    </div>
+                    <div class="avatar flex-shrink-0">
+                        <span class="avatar-initial rounded bg-label-primary"><i class="ti ti-rocket"></i></span>
+                    </div>
+                </div>
+                <a class="stretched-link" href="/marketing/landing/"></a>
+            </div>
+        </div>
+    </div>
+    {# --- Quick Access cards --------------------------------------------------- #}
+    <hr>
+    <div class="row g-3">
+        <!-- Vertical CRM Dashboard card/buttons -->
+        <div class="row g-3">
+            <!-- Vertical CRM Dashboard card/buttons -->
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open CRM Dashboard</a>
+            </div>
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open Call Center Dashboard</a>
+            </div>
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open Jobs Dashboard</a>
+            </div>
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open Finace Dashboard</a>
+            </div>
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open Home Improvement Dashboard</a>
+            </div>
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open Insurance Dashboard</a>
+            </div>
+            <div class="col-12 col-md-3">
+                <a class="btn btn-outline-primary" href="/ecommerce/">Open Debt Dashboard</a>
+            </div>
+        </div>
+        <hr>
+        <div class="row g-3 mt-2">
+            <div class="col-12 col-sm-6 col-lg-3">
+                <a class="btn btn-outline-primary w-100" href="/ecommerce/">Open CRM Dashboard</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'vertical-lead-form' 'jobs' as jobs_lead %}
+                <a class="btn btn-outline-secondary w-100" href="{{ jobs_lead }}">New Jobs Lead</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'vertical-lead-form' 'finance' as finance_lead %}
+                <a class="btn btn-outline-secondary w-100" href="{{ finance_lead }}">New Finance Lead</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'vertical-lead-form' 'education' as education_lead %}
+                <a class="btn btn-outline-secondary w-100" href="{{ education_lead }}">New Education Lead</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'vertical-lead-form' 'homeimprove' as hi_lead %}
+                <a class="btn btn-outline-secondary w-100" href="{{ hi_lead }}">New Home Improve Lead</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'vertical-lead-form' 'insurance' as ins_lead %}
+                <a class="btn btn-outline-secondary w-100" href="{{ ins_lead }}">New Insurance Lead</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'vertical-lead-form' 'debt' as debt_lead %}
+                <a class="btn btn-outline-secondary w-100" href="{{ debt_lead }}">New Debt Lead</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'api-docs-wrapped' as api_docs %}
+                <a class="btn btn-outline-secondary w-100"
+                   href="{{ api_docs|default:'/api/docs/' }}">API Docs</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <a class="btn btn-outline-secondary w-100" href="/callcenter/board/">Call Center Board</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'crm-clients' as clients_url %}
+                <a class="btn btn-outline-secondary w-100"
+                   href="{{ clients_url|default:'/crm/clients/' }}">Clients / Advertisers</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                {% url 'app-ecommerce-dashboard' as ec_url %}
+                <a class="btn btn-outline-secondary w-100"
+                   href="{{ ec_url|default:'/apps/ecommerce/dashboard/' }}">eCommerce</a>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <a class="btn btn-outline-secondary w-100" href="/jobs/content/new/">Editors (Jobs)</a>
+            </div>
+        </div>
+        <hr>
+        <div class="row g-3">
+            <!-- KPIs Cards -->
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <small class="text-muted">Total Jobs</small>
+                            <h3 class="mb-0">
+                                <span id="jobs-total-count">{{ kpis.total_jobs|default:0 }}</span>
+                            </h3>
+                        </div>
+                        <i class="ti ti-briefcase fs-3"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <small class="text-muted">Advertisers</small>
+                            <h3 class="mb-0">
+                                <span id="jobs-advertisers-count">{{ kpis.advertisers|default:0 }}</span>
+                            </h3>
+                        </div>
+                        <i class="ti ti-building fs-3"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <small class="text-muted">Full-time</small>
+                            <h3 class="mb-0">
+                                <span id="jobs-ft-count">{{ kpis.full_time|default:0 }}</span>
+                            </h3>
+                        </div>
+                        <i class="ti ti-calendar-stats fs-3"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <small class="text-muted">Contract</small>
+                            <h3 class="mb-0">
+                                <span id="jobs-contract-count">{{ kpis.contract|default:0 }}</span>
+                            </h3>
+                        </div>
+                        <i class="ti ti-file-invoice fs-3"></i>
+                    </div>
+                </div>
+            </div>
+            <!-- Charts: inject data as JSON -->
+            <div class="row g-3">
+                <div class="col-12 col-xl-4">
+                    <div class="card p-3">
+                        <h6 class="mb-2">By Job Type</h6>
+                        <div id="chart-by-type"></div>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-8">
+                    <div class="card p-3">
+                        <h6 class="mb-2">Top Titles</h6>
+                        <div id="chart-top-titles"></div>
+                    </div>
+                </div>
+            </div>
+            <!--Charts-->
+            {% block vendor_js %}
+                {{ block.super }}
+                <script src="{% static 'vuexy/vendor/libs/apex-charts/apexcharts.js' %}"></script>
+            {% endblock %}
+            {% block page_js %}
+                {{ block.super }}
+                <script>
+             (async function () {
+               // --- hard guard: never run twice on the same page load
+               if (window.__dsChartsInit) return;
+               window.__dsChartsInit = true;
+
+               // helpers
+               const $ = sel => document.querySelector(sel);
+               function clear(el) { while (el && el.firstChild) el.removeChild(el.firstChild); }
+
+               // fetch summary once
+               let data = { by_type: [], top_titles: [], by_source: [], total: 0 };
+               try {
+                 const r = await fetch('/api/jobs/summary/', { headers: { 'Accept':'application/json' } });
+                 if (r.ok) data = await r.json();
+               } catch (_) {}
+
+               // Donut
+               const donutEl = $('#chart-by-type');
+               if (donutEl && window.ApexCharts) {
+                 clear(donutEl);               // ensure no prior SVG/canvas left behind
+                 new ApexCharts(donutEl, {
+                   chart: { type: 'donut', height: 300 },
+                   labels: (data.by_type || []).map(x => x.job_type || 'unknown'),
+                   series: (data.by_type || []).map(x => x.count || 0),
+                   legend: { position: 'bottom' },
+                   dataLabels: { enabled: false }
+                 }).render();
+               }
+
+               // Bar
+               const barEl = $('#chart-top-titles');
+               if (barEl && window.ApexCharts) {
+                 clear(barEl);
+                 new ApexCharts(barEl, {
+                   chart: { type: 'bar', height: 300 },
+                   series: [{ name: 'Jobs', data: (data.top_titles || []).map(x => x.count || 0) }],
+                   xaxis: { categories: (data.top_titles || []).map(x => x.title || '') },
+                   plotOptions: { bar: { borderRadius: 4 } },
+                   dataLabels: { enabled: false }
+                 }).render();
+               }
+
+               // KPIs (optional)
+               const byType = (name) => (data.by_type||[]).find(x => (x.job_type||'').toLowerCase()===name) || {count:0};
+               const setText = (id, v) => { const n = document.getElementById(id); if (n) n.textContent = v; };
+               setText('jobs-total-count', data.total ?? 0);
+               setText('jobs-advertisers-count', (data.by_source||[]).length);
+               setText('jobs-ft-count', byType('full-time').count);
+               setText('jobs-contract-count', byType('contract').count);
+             })();
+                </script>
+            {% endblock %}
+            <!--End Charts-->
+            <!-- Optional: by Advertiser table -->
+            <div class="col-12">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Jobs by Advertiser</h6>
+                    </div>
+                    {% if by_adv %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Advertiser</th>
+                                        <th class="text-end">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-by-source">
+                                    {% for a in by_adv %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-label-dark">{{ a.0|default:"(none)" }}</span>
+                                            </td>
+                                            <td class="text-end">{{ a.1 }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-muted">No job data yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Refresh/Reset Buttons -->
+            <div class="d-flex gap-2 mb-3">
+                <form method="post" action="/admin-tools/refresh-jobs/">
+                    {% csrf_token %}
+                    <button id="btn-refresh-jobs" class="btn btn-primary">Refresh Jobs</button>
+                    <script>
+                          document.getElementById('btn-refresh-jobs')?.addEventListener('click', async () => {
+                            const body = new URLSearchParams({provider:'all', q:'engineer', limit:'25'});
+                            const r = await fetch('/api/jobs/refresh/', {
+                              method:'POST',
+                              headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/)||[])[1]},
+                              body
+                            });
+                            const data = await r.json().catch(()=>({}));
+                            alert(data.ok ? `Inserted ${data.inserted} jobs` : 'Refresh failed');
+                            location.reload(); // repull summary & repaint charts
+                          });
+                    </script>
+                </form>
+                <form method="post" action="/admin-tools/reset-caps/">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-secondary">Reset Caps</button>
+                </form>
+            </div>
+            <!-- Finance KPI cards -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <div class="text-muted">Finance Leads</div>
+                        <div class="h4">
+                            <a class="fw-semibold text-body"
+                               href="/finance/leads/?status=attempting">{{ finance_kpis.leads|default:0 }}</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <div class="text-muted">Sold</div>
+                        <div class="h4 text-success">
+                            <a class="fw-semibold text-success" href="/finance/leads/?status=sold">{{ finance_kpis.sold|default:0 }}</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <div class="text-muted">Rejected</div>
+                        <div class="h4 text-danger">
+                            <a class="fw-semibold text-danger"
+                               href="/finance/leads/?status=rejected">{{ finance_kpis.rejected|default:0 }}</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card p-3">
+                        <div class="text-muted">Active Lenders</div>
+                        <div class="h4">
+                            <a class="fw-semibold text-body" href="/django-admin/finance/lender/">{{ finance_kpis.active_lenders|default:0 }}</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Other KPIs -->
+        </div>
+    {% endblock %}

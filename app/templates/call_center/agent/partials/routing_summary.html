@@ -1,0 +1,102 @@
+<div class="card mb-3">
+  <div class="card-header">
+    <h5 class="mb-0">Routing Outcome</h5>
+  </div>
+
+  <div class="card-body">
+
+    <!-- Routing Tier -->
+    <p>
+      <strong>Routing Tier:</strong>
+      {% if lead.routing_tier == "hot" %}
+        <span class="badge bg-danger">HOT</span>
+      {% elif lead.routing_tier == "warm" %}
+        <span class="badge bg-warning text-dark">WARM</span>
+      {% else %}
+        <span class="badge bg-secondary">COLD</span>
+      {% endif %}
+    </p>
+
+    <!-- Routing Flags -->
+    <p>
+      <strong>Internal Routing:</strong>
+      {% if lead.routed_to_internal %}
+        <span class="badge bg-success">Enabled</span>
+      {% else %}
+        <span class="badge bg-secondary">Disabled</span>
+      {% endif %}
+    </p>
+
+    <p>
+      <strong>External Routing:</strong>
+      {% if lead.routed_to_external %}
+        <span class="badge bg-success">Enabled</span>
+      {% else %}
+        <span class="badge bg-secondary">Disabled</span>
+      {% endif %}
+    </p>
+
+    <hr>
+
+    <!-- Internal Contractor Invites -->
+    <h6 class="fw-bold">Internal Contractor Invites</h6>
+
+    {% if internal_offers %}
+      <ul class="list-group mb-3">
+        {% for offer in internal_offers %}
+          <li class="list-group-item">
+            <strong>{{ offer.contractor.business_name }}</strong><br>
+            <small>Invited: {{ offer.invited_at.strftime("%Y-%m-%d %H:%M") }}</small><br>
+
+            {% if offer.accepted %}
+              <span class="badge bg-success mt-1">Bid Submitted</span>
+            {% elif offer.declined %}
+              <span class="badge bg-danger mt-1">Declined</span>
+            {% else %}
+              <span class="badge bg-warning mt-1">Pending</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">No internal contractors were invited.</p>
+    {% endif %}
+
+    <hr>
+
+    <!-- External Network Routing -->
+    <h6 class="fw-bold">External Network Routing</h6>
+
+    {% if external_logs %}
+      <ul class="list-group">
+        {% for log in external_logs %}
+          <li class="list-group-item">
+            <strong>{{ log.network.name }}</strong><br>
+
+            {% if log.response_status == 200 %}
+              <span class="badge bg-success">Success</span>
+            {% else %}
+              <span class="badge bg-danger">Error {{ log.response_status }}</span>
+            {% endif %}
+
+            <br>
+            <small>{{ log.created_at.strftime("%Y-%m-%d %H:%M") }}</small><br>
+
+            <button 
+              class="btn btn-sm btn-outline-primary mt-2"
+              hx-get="/leads/{{ lead.id }}/external-log/{{ log.id }}"
+              hx-target="#external-log-modal-body"
+              data-bs-toggle="modal"
+              data-bs-target="#externalLogModal"
+            >
+              View Details
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">No external routing activity.</p>
+    {% endif %}
+
+  </div>
+</div>

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Estimate {{ estimate.project.name }} v{{ estimate.version }}{% endblock %}
+{% block content %}
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Estimate — {{ estimate.project.name }} (v{{ estimate.version }})</h2>
+            <a class="btn btn-secondary"
+               href="{% url 'estimating:estimate-edit' estimate.id %}">Edit</a>
+        </div>
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="text-muted small">Client</div>
+                        <div>{{ estimate.project.client_name|default:"—" }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-muted small">Status</div>
+                        <div class="badge bg-info">{{ estimate.get_status_display }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small">Tax rate</div>
+                        <div>{{ estimate.tax_rate|floatformat:2 }}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small">Margin %</div>
+                        <div>{{ estimate.margin_pct|floatformat:2 }}</div>
+                    </div>
+                </div>
+                {% if estimate.notes %}
+                    <div class="mt-3">
+                        <div class="text-muted small">Notes</div>
+                        <pre class="mb-0">{{ estimate.notes }}</pre>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:10%">Category</th>
+                            <th>Description</th>
+                            <th class="text-end" style="width:10%">Qty</th>
+                            <th style="width:8%">Unit</th>
+                            <th class="text-end" style="width:12%">Unit Cost</th>
+                            <th class="text-end" style="width:12%">Extended</th>
+                            <th style="width:8%">Tax</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for li in estimate.line_items.all %}
+                            <tr>
+                                <td>{{ li.get_category_display }}</td>
+                                <td>{{ li.description }}</td>
+                                <td class="text-end">{{ li.quantity|floatformat:2 }}</td>
+                                <td>{{ li.unit }}</td>
+                                <td class="text-end">${{ li.unit_cost|floatformat:2 }}</td>
+                                <td class="text-end">${{ li.extended|floatformat:2 }}</td>
+                                <td>
+                                    {% if li.tax_exempt %}
+                                        <span class="badge bg-secondary">Exempt</span>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No line items yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer">
+                <div class="row g-2">
+                    <div class="col-md-6"></div>
+                    <div class="col-md-6">
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <th>Materials</th>
+                                <td class="text-end">${{ estimate.subtotal_materials|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <th>Labor</th>
+                                <td class="text-end">${{ estimate.subtotal_labor|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <th>Tax</th>
+                                <td class="text-end">${{ estimate.tax_amount|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <th>Margin</th>
+                                <td class="text-end">${{ estimate.margin_amount|floatformat:2 }}</td>
+                            </tr>
+                            <tr class="table-active">
+                                <th>Total</th>
+                                <td class="text-end">
+                                    <strong>${{ estimate.total|floatformat:2 }}</strong>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 d-print-none">
+            <button class="btn btn-outline-secondary" onclick="window.print()">Print</button>
+        </div>
+    </div>
+{% endblock %}

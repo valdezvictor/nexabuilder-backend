@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ snippet.title }}{% endblock %}
+{% block content %}
+    <article class="prose max-w-3xl">
+        <h1>{{ snippet.title }}</h1>
+        {% if snippet.excerpt %}
+            <p>
+                <em>{{ snippet.excerpt }}</em>
+            </p>
+        {% endif %}
+        <div>{{ snippet.body|linebreaks }}</div>
+    </article>
+{% endblock %}

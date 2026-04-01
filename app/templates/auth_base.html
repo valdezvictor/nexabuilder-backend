@@ -1,0 +1,32 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en"
+      class="{{ style|default:'light' }}-style layout-navbar-fixed layout-wide layout-menu-fixed customizer-hide"
+      dir="{{ text_direction|default:'ltr' }}"
+      data-theme="theme-default"
+      data-assets-path="{% static '' %}"
+      data-base-url=""
+      data-framework="django"
+      data-template="vertical-menu--theme-default-{{ style|default:'light' }}"
+      data-style="{{ style|default:'light' }}">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>
+            {% block title %}Sign in{% endblock %}
+        </title>
+        <link rel="stylesheet" href="{% static 'vuexy/vendor/css/core.css' %}">
+        <link rel="stylesheet"
+              href="{% static 'vuexy/vendor/css/theme-default.css' %}">
+        <link rel="stylesheet" href="{% static 'vuexy/css/demo.css' %}">
+        {% block vendor_css %}{% endblock %}
+        {% block page_css %}{% endblock %}
+    </head>
+    <body>
+        {% block content %}{% endblock %}
+        <script src="{% static 'vuexy/vendor/libs/jquery/jquery.js' %}"></script>
+        <script src="{% static 'vuexy/vendor/js/bootstrap.js' %}"></script>
+        {% block vendor_js %}{% endblock %}
+        {% block page_js %}{% endblock %}
+    </body>
+</html>

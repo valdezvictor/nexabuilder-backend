@@ -1,0 +1,60 @@
+<div id="media-panel">
+
+  <div class="mb-3">
+    <h5 class="mb-1">Lead Media</h5>
+    <p class="text-muted mb-2">
+      Upload photos, videos, or documents related to this lead.
+    </p>
+  </div>
+
+  <!-- Upload form -->
+  <form
+    hx-post="/call-center/leads/{{ lead.id }}/media/upload"
+    hx-target="#media-panel"
+    hx-swap="outerHTML"
+    enctype="multipart/form-data"
+  >
+    <div class="mb-3">
+      <label class="form-label fw-bold">Add Files</label>
+      <input
+        type="file"
+        class="form-control"
+        name="files"
+        multiple
+      >
+      <small class="text-muted">
+        You can upload multiple files at once.
+      </small>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      Upload
+    </button>
+  </form>
+
+  <hr>
+
+  <!-- Existing media list -->
+  <h6 class="fw-bold">Existing Media</h6>
+
+  {% if media_files %}
+    <ul class="list-group">
+      {% for media in media_files %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{{ media.filename }}</strong><br>
+            <small class="text-muted">
+              {{ media.created_at.strftime("%Y-%m-%d %H:%M") }}
+            </small>
+          </div>
+          <a href="{{ media.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+            View
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-muted mb-0">No media uploaded yet.</p>
+  {% endif %}
+
+</div>

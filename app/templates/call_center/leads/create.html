@@ -1,0 +1,679 @@
+{% extends "vuexy_base.html" %} {% block content %}
+<div class="container-xxl flex-grow-1 container-p-y">
+  <!-- Page Header -->
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold">
+      Create New Lead
+    </h4>
+    <a class="btn btn-secondary" href="/call-center/leads">Back to Leads</a>
+  </div>
+
+  <div class="row">
+    <!-- LEFT COLUMN: Lead Intake Form -->
+
+    <div class="col-md-8">
+      <!-- Lead Intake Form -->
+
+      <form action="/call-center/leads/create" id="lead-intake-form" method=
+      "post" name="lead-intake-form">
+        <!-- Personal Information -->
+
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              Personal Information
+            </h5>
+          </div>
+
+          <div class="card-body row g-3">
+            <!-- First Name -->
+
+            <div class="col-md-6">
+              <label class="form-label">First Name</label> <input class=
+              "form-control" name="first_name" pattern="^[A-Za-z]+$" required=
+              "" title="First name should only contain letters" type="text">
+            </div>
+            <!-- Last Name -->
+
+            <div class="col-md-6">
+              <label class="form-label">Last Name</label> <input class=
+              "form-control" name="last_name" pattern="^[A-Za-z]+$" required=""
+              title="Last name should only contain letters" type="text">
+            </div>
+            <!-- Email -->
+
+            <div class="col-md-6">
+              <label class="form-label">Email</label> <input class=
+              "form-control" id="email-input" name="email" required="" type=
+              "text">
+              <div class="text-danger small" id="email-error" style=
+              "display:none;">
+                Please enter a valid email address.
+              </div>
+            </div>
+            <!-- Phone Number validation with error message -->
+
+            <div class="col-md-6">
+              <label class="form-label">Phone</label> <input class=
+              "form-control" id="phone-input" name="phone" pattern=
+              "^\(?([2-9][0-8][0-9])\)?[-.●]?([2-9][0-9]{2})[-.●]?([0-9]{4})$"
+              required="" title="Please enter a valid US phone number" type=
+              "text">
+              <div class="text-danger small" id="phone-error" style=
+              "display:none;">
+                Please enter a valid phone number.
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Address -->
+
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              Address
+            </h5>
+          </div>
+
+          <div class="card-body row g-3">
+            <!-- Address Line 1 -->
+
+            <div class="col-12">
+              <label class="form-label">Address Line 1</label> <input class=
+              "form-control" name="address_line1" required="" type="text">
+            </div>
+            <!-- Address Line 2 -->
+
+            <div class="col-12">
+              <label class="form-label">Address Line 2 (optional)</label>
+              <input class="form-control" name="address_line2" type="text">
+            </div>
+            <!-- City -->
+
+            <div class="col-md-6">
+              <label class="form-label">City</label> <input class=
+              "form-control" name="city" pattern="^[A-Za-z\s]+$" required=""
+              title="City should only contain letters and spaces" type="text">
+            </div>
+            <!-- State -->
+
+            <div class="col-md-3">
+              <label class="form-label">State</label> <input class=
+              "form-control" maxlength="2" name="state" pattern="^[A-Za-z]{2}$"
+              required="" type="text">
+            </div>
+            <!-- Postal Code -->
+
+            <div class="col-md-3">
+              <label class="form-label">Postal Code</label> <input class=
+              "form-control" name="postal_code" pattern="^\d{5}(-\d{4})?$"
+              required="" type="text">
+            </div>
+          </div>
+        </div>
+        <!-- Project Details -->
+
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              Project Details
+            </h5>
+          </div>
+
+          <div class="card-body row g-3">
+            <!-- Vertical -->
+
+            <div class="col-md-6">
+              <label class="form-label">Vertical</label> <select class=
+              "form-control" id="vertical-select" name="vertical" required="">
+                <option value="">
+                  Loading trades...
+                </option>
+              </select>
+            </div>
+            <!-- Project Type -->
+
+            <div class="col-md-6">
+              <label class="form-label">Project Type</label> <input class=
+              "form-control" name="project_type" required="" type="text">
+            </div>
+            <!-- Description -->
+
+            <div class="col-12">
+              <label class="form-label">Description</label> 
+
+              <textarea class="form-control" name="description" rows=
+              "3"></textarea>
+            </div>
+          </div>
+        </div>
+        <!-- Dynamic Vertical Fields -->
+
+        <div id="vertical-fields">
+          <!-- Roofing -->
+
+          <div class="vertical-section" id="fields-roofing" style=
+          "display:none;">
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5 class="card-title mb-0">
+                  Roofing Details
+                </h5>
+              </div>
+
+              <div class="card-body row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Roof Type</label> <select class=
+                  "form-control" name="roof_type">
+                    <option value="">
+                      Select
+                    </option>
+                    <option value="asphalt">
+                      Asphalt Shingle
+                    </option>
+                    <option value="tile">
+                      Tile
+                    </option>
+                    <option value="metal">
+                      Metal
+                    </option>
+                    <option value="flat">
+                      Flat Roof
+                    </option>
+                  </select>
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label">Stories</label> <input class=
+                  "form-control" name="stories" type="number">
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label">Roof Age (years)</label>
+                  <input class="form-control" name="roof_age" type="number">
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Solar -->
+
+          <div class="vertical-section" id="fields-solar" style=
+          "display:none;">
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5 class="card-title mb-0">
+                  Solar Details
+                </h5>
+              </div>
+
+              <div class="card-body row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Monthly Electric Bill</label>
+                  <input class="form-control" name="electric_bill" type=
+                  "number">
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label">Roof Shading</label> <select class=
+                  "form-control" name="roof_shading">
+                    <option value="">
+                      Select
+                    </option>
+                    <option value="none">
+                      No Shade
+                    </option>
+                    <option value="partial">
+                      Partial Shade
+                    </option>
+                    <option value="heavy">
+                      Heavy Shade
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- HVAC -->
+          <div class="vertical-section" id="fields-hvac" style="display:none;">
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5 class="card-title mb-0">
+                  HVAC Details
+                </h5>
+              </div>
+              <!-- HVAC-specific fields like system type and age -->
+              <div class="card-body row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">System Type</label> <select class=
+                  "form-control" name="system_type">
+                    <option value="">
+                      Select
+                    </option>
+                    <option value="ac">
+                      AC
+                    </option>
+                    <option value="furnace">
+                      Furnace
+                    </option>
+                    <option value="heat_pump">
+                      Heat Pump
+                    </option>
+                  </select>
+                </div>
+                <!-- System Age -->
+                <div class="col-md-6">
+                  <label class="form-label">System Age (years)</label>
+                  <input class="form-control" name="system_age" type="number">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Budget -->
+        <div class="card mt-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">Budget & Funding</h5>
+          </div>
+          <div class="card-body row g-3">
+            <!-- Financing Option -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Do they need financing?</label>
+              <select name="needs_financing" class="form-select">
+                <option value="">Not sure</option>
+                <option value="yes">Yes, they need financing</option>
+                <option value="no">No, they do not need financing</option>
+              </select>
+            </div>
+            <!-- Budget Info -->            
+            <div class="col-md-6">
+              <label class="form-label">Budget Min</label>
+              <input type="number" name="budget_min" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Budget Max</label>
+              <input type="number" name="budget_max" class="form-control" required>
+            </div>
+            <!-- Funding Option -->
+            <div class="col-md-6">
+              <label class="form-label">Funding Option</label>
+              <select name="funding_option" class="form-select" required>
+                <option value="cash">Cash</option>
+                <option value="financing">Financing</option>
+                <option value="undecided">Undecided</option>
+              </select>
+            </div>
+          </div>
+          <!-- Budget Validation Error -->
+          <div class="col-12">
+            <div class="text-danger small" id="budget-error" style=
+            "display:none;">
+              Budget Max must be greater than or equal to Budget Min.
+            </div>
+          </div>
+          <!-- Metadata -->
+          <div class="card mb-4 mt-4">
+            <div class="card-header">
+              <h5 class="card-title mb-0">
+                Metadata
+              </h5>
+            </div>
+
+            <div class="card-body row g-3">
+              <!-- Source -->
+
+              <div class="col-md-6">
+                <label class="form-label">Source</label> <input class=
+                "form-control" name="source" type="text">
+              </div>
+              <!-- Lead Score -->
+
+              <div class="col-md-6">
+                <label class="form-label">Lead Score (optional)</label>
+                <input class="form-control" name="lead_score" type="number">
+              </div>
+            </div>
+          </div>
+          <!-- Submit -->
+
+          <div class="text-end">
+            <button class="btn btn-primary btn-lg" type="submit">Create
+            Lead</button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <!-- RIGHT COLUMN: Routing Preview -->
+
+    <div class="col-md-4">
+      <!-- Routing Preview Card -->
+
+      <div id="routing-preview">
+        <div class="card">
+          <div class="card-body text-center py-5 text-muted">
+            <em>Routing preview will appear here as you fill out the form.</em>
+          </div>
+        </div>
+        <!-- Call Script Card -->
+
+        <div class="card mt-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              Call Script
+            </h5>
+          </div>
+
+          <div class="card-body">
+            <p class="mb-0 text-muted" id="call-script-text">
+              Start entering the lead’s info to generate a call script…
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Client-side validation script -->
+<script>
+  (function () {
+    const form = document.getElementById('lead-intake-form');
+    const budgetMinInput = form.querySelector('input[name="budget_min"]');
+    const budgetMaxInput = form.querySelector('input[name="budget_max"]');
+    const budgetError = document.getElementById('budget-error');
+
+    function validateBudget() {
+      const min = parseFloat(budgetMinInput.value);
+      const max = parseFloat(budgetMaxInput.value);
+
+      if (!isNaN(min) && !isNaN(max) && max < min) {
+        budgetError.style.display = 'block';
+        budgetMaxInput.classList.add('is-invalid');
+        return false;
+      } else {
+        budgetError.style.display = 'none';
+        budgetMaxInput.classList.remove('is-invalid');
+        return true;
+      }
+    }
+
+    budgetMinInput.addEventListener('input', validateBudget);
+    budgetMaxInput.addEventListener('input', validateBudget);
+
+    form.addEventListener('submit', function (e) {
+      if (!validateBudget()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (!form.checkValidity()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+  })();
+</script> <!-- Phone number validation and formatting script -->
+<script>
+(function () {
+  const phoneInput = document.getElementById('phone-input');
+  const phoneError = document.getElementById('phone-error');
+  const form = document.getElementById('lead-intake-form');
+
+  // NANP validation: (NXX)-NXX-XXXX
+  function isValidPhone(num) {
+    const digits = num.replace(/\D/g, '');
+
+    // Must be exactly 10 digits
+    if (digits.length !== 10) return false;
+
+    const area = digits.substring(0, 3);
+    const prefix = digits.substring(3, 6);
+
+    // NANP rules:
+    // Area code cannot start with 0 or 1
+    if (area[0] === '0' || area[0] === '1') return false;
+
+    // Prefix cannot start with 0 or 1
+    if (prefix[0] === '0' || prefix[0] === '1') return false;
+
+    return true;
+  }
+
+  // Auto-format phone number
+  function formatPhone(num) {
+    const digits = num.replace(/\D/g, '').substring(0, 10);
+
+    const area = digits.substring(0, 3);
+    const prefix = digits.substring(3, 6);
+    const line = digits.substring(6, 10);
+
+    if (digits.length > 6) {
+      return `(${area}) ${prefix}-${line}`;
+    } else if (digits.length > 3) {
+      return `(${area}) ${prefix}`;
+    } else if (digits.length > 0) {
+      return `(${area}`;
+    }
+    return '';
+  }
+
+  phoneInput.addEventListener('input', function () {
+    const raw = phoneInput.value;
+    const formatted = formatPhone(raw);
+    phoneInput.value = formatted;
+
+    if (raw.length === 0) {
+      phoneError.style.display = 'none';
+      phoneInput.classList.remove('is-invalid');
+      return;
+    }
+
+    if (!isValidPhone(raw)) {
+      phoneError.style.display = 'block';
+      phoneInput.classList.add('is-invalid');
+    } else {
+      phoneError.style.display = 'none';
+      phoneInput.classList.remove('is-invalid');
+    }
+  });
+
+  // Prevent form submission if phone is invalid
+  form.addEventListener('submit', function (e) {
+    const raw = phoneInput.value;
+
+    if (raw && !isValidPhone(raw)) {
+      e.preventDefault();
+      e.stopPropagation();
+      phoneError.style.display = 'block';
+      phoneInput.classList.add('is-invalid');
+    }
+  });
+})();
+</script> <!-- Vertical selection script -->
+<script>
+(function () {
+  const verticalSelect = document.querySelector('select[name="vertical"]');
+  const sections = document.querySelectorAll('.vertical-section');
+
+  function updateVerticalFields() {
+    const value = verticalSelect.value;
+
+    // Hide all sections
+    sections.forEach(sec => sec.style.display = 'none');
+
+    // Roofing (C-39)
+    if (value === 'C-39') {
+      document.getElementById('fields-roofing').style.display = 'block';
+    }
+
+    // Electrical/Solar (C-10)
+    if (value === 'C-10') {
+      document.getElementById('fields-solar').style.display = 'block';
+    }
+
+    // HVAC (C-20)
+    if (value === 'C-20') {
+      document.getElementById('fields-hvac').style.display = 'block';
+    }
+  }
+
+  verticalSelect.addEventListener('change', updateVerticalFields);
+})();
+</script> <!-- Dynamic trade loading script -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const verticalSelect = document.getElementById("vertical-select");
+
+  fetch("/api/trades")
+    .then(response => response.json())
+    .then(data => {
+      console.log("Trades response:", data);  // ✅ valid placement
+
+      // Handle both: [ ... ] and { trades: [ ... ] }
+      const trades = Array.isArray(data) ? data : data.trades || [];
+
+      verticalSelect.innerHTML = '<option value="">Select a trade...<\/option>';
+
+      trades.forEach(trade => {
+        const opt = document.createElement("option");
+        opt.value = trade.code;
+        opt.textContent = `${trade.code} — ${trade.name}`;
+        verticalSelect.appendChild(opt);
+      });
+    })
+    .catch(err => {
+      console.error("Failed to load trades:", err);
+      verticalSelect.innerHTML = '<option value="">Error loading trades<\/option>';
+    });
+});
+</script> <!-- Email validation script -->
+<script>
+(function () {
+  const emailInput = document.getElementById('email-input');
+  const emailError = document.getElementById('email-error');
+  const form = document.getElementById('lead-intake-form');
+
+  // Email format validation
+  function isValidEmail(email) {
+    if (!email) return true; // allow empty, backend will score it
+
+    // Basic structure check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+    if (!emailRegex.test(email)) return false;
+
+    // Split into parts
+    const [local, domain] = email.split("@");
+
+    // Domain length limit
+    if (domain.length > 50) return false;
+
+    // TLD validation
+    const tld = domain.split(".").pop().toLowerCase();
+    const allowedTLDs = ["com", "net", "org", "info", "co", "us", "io"];
+    if (!allowedTLDs.includes(tld)) return false;
+
+    return true;
+  }
+
+  emailInput.addEventListener('input', function () {
+    const value = emailInput.value;
+
+    if (!value) {
+      emailError.style.display = 'none';
+      emailInput.classList.remove('is-invalid');
+      return;
+    }
+
+    if (!isValidEmail(value)) {
+      emailError.style.display = 'block';
+      emailInput.classList.add('is-invalid');
+    } else {
+      emailError.style.display = 'none';
+      emailInput.classList.remove('is-invalid');
+    }
+  });
+
+  // Prevent form submission if invalid
+  form.addEventListener('submit', function (e) {
+    const value = emailInput.value;
+
+    if (value && !isValidEmail(value)) {
+      e.preventDefault();
+      e.stopPropagation();
+      emailError.style.display = 'block';
+      emailInput.classList.add('is-invalid');
+    }
+  });
+})();
+</script> 
+<!-- HTMX script for dynamic routing preview and call script generation -->
+<script>
+(function () {
+  const firstNameInput = document.querySelector('input[name="first_name"]');
+  const cityInput = document.querySelector('input[name="city"]');
+  const verticalSelect = document.querySelector('select[name="vertical"]');
+  const projectTypeInput = document.querySelector('input[name="project_type"]');
+  const scriptEl = document.getElementById('call-script-text');
+
+  function getVerticalLabel() {
+    const opt = verticalSelect.options[verticalSelect.selectedIndex];
+    return opt && opt.value ? opt.textContent : '';
+  }
+
+  function updateScript() {
+    const name = firstNameInput.value || "there";
+    const city = cityInput.value || "your area";
+    const verticalLabel = getVerticalLabel() || "your project";
+    const projectType = projectTypeInput.value || "";
+
+    const projectPhrase = projectType
+      ? `${projectType.toLowerCase()} project`
+      : verticalLabel.toLowerCase();
+
+    scriptEl.textContent =
+      `Hi ${name}, thanks for reaching out about your ${projectPhrase} in ${city}. ` +
+      `I’ll ask you a few quick questions so we can match you with the best licensed contractor in our network.`;
+  }
+
+  [firstNameInput, cityInput, verticalSelect, projectTypeInput].forEach(el => {
+    el.addEventListener('input', updateScript);
+    el.addEventListener('change', updateScript);
+  });
+})();
+</script> <!-- ZIP code lookup script -->
+<script>
+(function () {
+  const zipInput = document.querySelector('input[name="postal_code"]');
+  const cityInput = document.querySelector('input[name="city"]');
+  const stateInput = document.querySelector('input[name="state"]');
+
+  let zipTimeout = null;
+
+  zipInput.addEventListener('input', function () {
+    const zip = zipInput.value.replace(/\D/g, '');
+
+    if (zip.length < 5) return;
+
+    clearTimeout(zipTimeout);
+
+    zipTimeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/zip/${zip}`);
+        if (!res.ok) throw new Error();
+
+        const data = await res.json();
+
+        // Auto-fill city and state
+        cityInput.value = data.city;
+        stateInput.value = data.state;
+
+        // Trigger routing preview update
+        cityInput.dispatchEvent(new Event('input'));
+        stateInput.dispatchEvent(new Event('input'));
+
+      } catch (err) {
+        console.warn("ZIP lookup failed");
+      }
+    }, 300);
+  });
+})();
+</script> {% endblock %}

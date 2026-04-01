@@ -1,0 +1,42 @@
+{% macro vertical_name(code) %}
+    {# Normalize to uppercase #}
+    {% set c = code.upper() if code else "" %}
+
+    {% set MAP = {
+        "C-36": "Plumbing",
+        "C-20": "HVAC",
+        "C-39": "Roofing",
+        "C-46": "Solar",
+        "B-2":  "General Remodeling",
+        "B":    "General Building"
+    } %}
+
+    {{ MAP.get(c, code) }}
+{% endmacro %}
+
+
+{% macro vertical_icon(code) %}
+    {% set c = code.upper() if code else "" %}
+
+    {% if c == "C-33" %}
+        🎨
+    {% elif c == "C-39" %}
+        🏠
+    {% elif c == "C-36" %}
+        🚰
+    {% elif c == "C-20" %}
+        ❄️
+    {% elif c == "C-46" %}
+        ☀️
+    {% else %}
+        🛠️
+    {% endif %}
+{% endmacro %}
+
+
+{% macro vertical_badge(code) %}
+    {% from "macros/verticals.html" import vertical_icon %}
+    <span class="badge bg-secondary">
+        {{ vertical_icon(code) }} {{ vertical_name(code) }}
+    </span>
+{% endmacro %}

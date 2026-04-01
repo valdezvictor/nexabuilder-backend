@@ -1,0 +1,36 @@
+{% extends "vuexy_base.html" %}
+{% load static %}
+{% block title %}Marketing Landing{% endblock %}
+{% block content %}
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card p-5 text-center">
+                <h2 class="mb-2">Grow with DotSchools</h2>
+                <p class="text-muted mb-4">Lead routing • Campaign analytics • Multi-vertical funnels</p>
+                <a href="/ecommerce/" class="btn btn-primary btn-lg">Open CRM Dashboard</a>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h6 class="mb-1">Education</h6>
+                <p class="text-muted mb-2">Programs, outcomes, and APIs.</p>
+                <a class="btn btn-outline-primary" href="/education/">Explore</a>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h6 class="mb-1">Jobs</h6>
+                <p class="text-muted mb-2">Aggregated feeds + matching.</p>
+                <a class="btn btn-outline-primary" href="/jobs/">Browse Jobs</a>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h6 class="mb-1">Home Improvement</h6>
+                <p class="text-muted mb-2">Estimator + licenses.</p>
+                <a class="btn btn-outline-primary"
+                   href="{% url 'estimating:estimate-list' %}">Open Estimator</a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

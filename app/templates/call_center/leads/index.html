@@ -1,0 +1,441 @@
+{% extends "vuexy_base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <h2 class="mb-4">Call Center Leads</h2>
+
+    <!-- ⭐ New Lead Banner -->
+
+    <!-- ⭐ Mobile Filters -->
+    <div class="lead-filters d-flex gap-2 mb-3">
+
+      <!-- ⭐ Status Filter -->
+      <select id="filter-status" class="form-select form-select-sm">
+        <option value="">Status</option>
+        <option>New</option>
+        <option>In Progress</option>
+        <option>Closed</option>
+      </select>
+
+      <!-- ⭐ Vertical Filter -->
+      <select id="filter-vertical" class="form-select form-select-sm">
+        <option value="">Vertical</option>
+        <option>Plumbing</option>
+        <option>HVAC</option>
+        <option>Roofing</option>
+      </select>
+
+      <!-- ⭐ Mobile-only Sort Label -->
+      <label class="d-block d-md-none text-muted small">Sort</label>
+
+      <!-- ⭐ Sorting -->
+      <select id="sort-leads" class="form-select form-select-sm">
+        <option value="">Sort By</option>
+        <option value="created_desc">Newest First</option>
+        <option value="created_asc">Oldest First</option>
+        <option value="score_desc">Score: High → Low</option>
+        <option value="score_asc">Score: Low → High</option>
+        <option value="tier_desc">Tier: HOT → COLD</option>
+        <option value="tier_asc">Tier: COLD → HOT</option>
+        <option value="name_asc">Name A → Z</option>
+        <option value="name_desc">Name Z → A</option>
+        <option value="zip_asc">ZIP Asc</option>
+        <option value="zip_desc">ZIP Desc</option>
+      </select>
+
+      <!-- ⭐ Clear Filters -->
+      <button id="clear-filters" class="btn btn-light btn-sm">Clear</button>
+    </div>
+
+    <div id="pull-refresh-indicator" class="pull-refresh d-none">
+        <div class="spinner"></div>
+        <span>Refreshing…</span>
+    </div>
+
+    <table id="leadsTable" class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Created</th>
+                <th>Name</th>
+                <th>Vertical</th>
+                <th>ZIP</th>
+                <th>Score</th>
+                <th>Tier</th>
+                <th>Status</th>
+                <th>Open</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for lead in leads %}
+            <tr class="tier-{{ lead.routing_tier|lower }}">
+                <td data-label="ID" class="lead-id-cell">
+                    {% if lead.routing_tier == "HOT" %}
+                        <div class="hot-ribbon">HOT</div>
+                    {% endif %}
+                    {{ lead.id }}
+                </td>
+                <td data-label="Created">{{ lead.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                <td data-label="Name">{{ lead.first_name }} {{ lead.last_name }}</td>
+                <td data-label="Vertical">{{ lead.vertical }}</td>
+                <td data-label="ZIP">{{ lead.postal_code }}</td>
+                <td data-label="Score">{{ lead.lead_score or "-" }}</td>
+                <td data-label="Tier">{{ lead.routing_tier or "-" }}</td>
+                <td data-label="Status">{{ lead.status }}</td>
+                <td data-label="Actions" class="lead-actions-cell">
+
+                    <!-- ⭐ Desktop Quick Actions -->
+                    <div class="desktop-actions d-none d-md-flex gap-2">
+
+                        <!-- Call -->
+                        <button class="btn btn-sm btn-success call-btn" data-phone="{{ lead.phone }}">
+                            <i class="ti ti-phone"></i>
+                        </button>
+
+                        <!-- Text -->
+                        <button class="btn btn-sm btn-info text-btn" data-phone="{{ lead.phone }}">
+                            <i class="ti ti-message"></i>
+                        </button>
+
+                        <!-- Route -->
+                        <button class="btn btn-sm btn-warning route-btn" data-lead-id="{{ lead.id }}">
+                            <i class="ti ti-repeat"></i>
+                        </button>
+
+                        <!-- ⭐ Mark as Contacted -->
+                         <button class="btn btn-sm btn-secondary contacted-btn" data-lead-id="{{ lead.id }}">
+                            <i class="ti ti-check"></i>
+                        </button>
+
+                        <!-- Open Lead -->
+                        <a href="/call-center/leads/{{ lead.id }}" class="btn btn-sm btn-primary">
+                            <i class="ti ti-arrow-right"></i>
+                        </a>
+                    </div>
+
+                    <!-- ⭐ Mobile Quick Actions -->
+                    <div class="quick-actions d-flex d-md-none gap-2">
+
+                        <!-- ⭐ Call Lead -->
+                        <button class="btn btn-sm btn-success call-btn" data-phone="{{ lead.phone }}">
+                            <i class="ti ti-phone"></i>
+                        </button>
+
+                        <!-- ⭐ Text Message Lead -->
+                        <button class="btn btn-sm btn-info text-btn" data-phone="{{ lead.phone }}">
+                            <i class="ti ti-message"></i>
+                        </button>
+
+                        <!-- ⭐ Route Lead -->
+                        <button class="btn btn-sm btn-warning route-btn" data-lead-id="{{ lead.id }}">
+                            <i class="ti ti-repeat"></i>
+                        </button>
+
+                        <!-- ⭐ Mark as Contacted --> 
+                         <button class="btn btn-sm btn-secondary contacted-btn" data-lead-id="{{ lead.id }}">
+                            <i class="ti ti-check"></i>
+                        </button>
+
+                        <a href="/call-center/leads/{{ lead.id }}" class="btn btn-sm btn-primary">
+                            <i class="ti ti-arrow-right"></i>
+                        </a>
+                    </div>
+
+                </td>
+
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const table = new DataTable("#leadsTable", {
+        serverSide: true,
+        processing: true,
+        ajax: "/call-center/api/leads",
+        deferRender: true,
+        scrollY: "70vh",
+        scrollCollapse: true,
+    });
+
+    // ⭐ Re-bind actions after every redraw
+    table.on("draw", function () {
+        attachQuickActions();
+        addSwipeGestures();
+    });
+
+    // ⭐ Bind actions on initial load
+    attachQuickActions();
+    addSwipeGestures();
+        
+    // ⭐ Add this RIGHT HERE
+    table.on("processing.dt", function (e, settings, processing) {
+        if (processing) {
+            document.body.classList.add("loading-row");
+        } else {
+            document.body.classList.remove("loading-row");
+        }
+    });
+
+    // ⭐ Status Filter
+    document.getElementById("filter-status").addEventListener("change", function () {
+        table.column(7).search(this.value).draw();
+    });
+
+    // ⭐ Sorting Options
+    document.getElementById("sort-leads").addEventListener("change", function () {
+        const value = this.value;
+
+        switch (value) {
+            case "created_desc": table.order([1, "desc"]).draw(); break;
+            case "created_asc": table.order([1, "asc"]).draw(); break;
+            case "score_desc": table.order([5, "desc"]).draw(); break;
+            case "score_asc": table.order([5, "asc"]).draw(); break;
+            case "tier_desc": table.order([6, "desc"]).draw(); break;
+            case "tier_asc": table.order([6, "asc"]).draw(); break;
+            case "name_asc": table.order([2, "asc"]).draw(); break;
+            case "name_desc": table.order([2, "desc"]).draw(); break;
+            case "zip_asc": table.order([4, "asc"]).draw(); break;
+            case "zip_desc": table.order([4, "desc"]).draw(); break;
+            default: table.order([]).draw();
+        }
+    });
+
+    // ⭐ Clear Filters
+    document.getElementById("clear-filters").addEventListener("click", function () {
+        document.getElementById("filter-status").value = "";
+        document.getElementById("filter-vertical").value = "";
+        document.getElementById("sort-leads").value = "";
+
+        table.column(7).search("");
+        table.column(3).search("");
+        table.order([]).draw();
+    });
+
+    // ⭐ Floating Create Lead Button
+    document.querySelector(".fab-create-lead").addEventListener("click", function () {
+        window.location.href = "/call-center/leads/create";
+    });
+
+    // ⭐ Swipe Gestures for Mobile Lead Cards
+    function addSwipeGestures() {
+        const rows = document.querySelectorAll("#leadsTable tbody tr");
+
+        rows.forEach(row => {
+            let startX = 0;
+            let endX = 0;
+
+            row.addEventListener("touchstart", e => {
+                startX = e.changedTouches[0].screenX;
+            });
+
+            row.addEventListener("touchend", e => {
+                endX = e.changedTouches[0].screenX;
+                handleSwipe(row, startX, endX);
+            });
+        });
+    }
+
+    function handleSwipe(row, startX, endX) {
+        const diff = endX - startX;
+        const wrapper = row.querySelector(".lead-card-wrapper");
+
+        if (!wrapper) return;
+
+        // Ignore tiny movements
+        if (Math.abs(diff) < 40) return;
+
+        // ⭐ Swipe Right → Call customer
+        if (diff > 40) {
+            row.classList.add("swipe-right");
+            setTimeout(() => {
+                row.classList.remove("swipe-right");
+                const phone = row.querySelector('[data-label="Name"]').textContent.trim();
+                window.location.href = `tel:${phone}`;
+            }, 250);
+        }
+
+        // ⭐ Swipe Left → Open lead
+        if (diff < -40) {
+            row.classList.add("swipe-left");
+            setTimeout(() => {
+                row.classList.remove("swipe-left");
+                const link = row.querySelector("a.btn-primary");
+                if (link) link.click();
+            }, 250);
+        }
+    }
+
+function attachQuickActions() {
+
+    // ⭐ Call
+    document.querySelectorAll(".call-btn").forEach(btn => {
+        btn.addEventListener("click", function () {
+            const phone = this.dataset.phone;
+            if (phone) window.location.href = `tel:${phone}`;
+        });
+    });
+
+    // ⭐ Text
+    document.querySelectorAll(".text-btn").forEach(btn => {
+        btn.addEventListener("click", function () {
+            const phone = this.dataset.phone;
+            if (phone) window.location.href = `sms:${phone}?body=Hi%20this%20is%20NexABuilder%20regarding%20your%20project`;
+        });
+    });
+
+    // ⭐ Route
+    document.querySelectorAll(".route-btn").forEach(btn => {
+        btn.addEventListener("click", async function () {
+            const leadId = this.dataset.leadId;
+            await fetch(`/call-center/api/route-lead/${leadId}`, { method: "POST" });
+            alert("Lead routed successfully.");
+        });
+    });
+
+    // ⭐ Mark as Contacted
+    document.querySelectorAll(".contacted-btn").forEach(btn => {
+        btn.addEventListener("click", async function () {
+            const leadId = this.dataset.leadId;
+            const row = this.closest("tr");
+
+            const response = await fetch(`/call-center/api/mark-contacted/${leadId}`, {
+                method: "POST"
+            });
+
+            if (response.ok) {
+                row.classList.add("contact-marked");
+                setTimeout(() => row.classList.remove("contact-marked"), 1500);
+            }
+        });
+    });
+}
+
+
+    // ⭐ Sticky HOT Lead Action Bar Logic
+    document.querySelectorAll("#leadsTable tbody tr").forEach(row => {
+        row.addEventListener("click", function () {
+            const tierCell = row.querySelector('[data-label="Tier"]');
+            const isHot = tierCell && tierCell.textContent.trim().toUpperCase() === "HOT";
+
+            if (isHot) {
+                const leadId = row.querySelector(".route-btn")?.dataset.leadId;
+                const phone = row.querySelector(".call-btn")?.dataset.phone;
+
+                // Populate action bar
+                document.getElementById("hot-call").dataset.phone = phone;
+                document.getElementById("hot-text").dataset.phone = phone;
+                document.getElementById("hot-route").dataset.leadId = leadId;
+                document.getElementById("hot-open").dataset.leadId = leadId;
+
+                // Show bar
+                document.getElementById("hot-action-bar").classList.remove("d-none");
+            }
+        });
+    });
+
+    // ⭐ Sticky Bar: Call
+    document.getElementById("hot-call").addEventListener("click", function () {
+        const phone = this.dataset.phone;
+        if (phone) window.location.href = `tel:${phone}`;
+    });
+
+    // ⭐ Sticky Bar: Text
+    document.getElementById("hot-text").addEventListener("click", function () {
+        const phone = this.dataset.phone;
+        if (phone) window.location.href = `sms:${phone}`;
+    });
+
+    // ⭐ Sticky Bar: Route
+    document.getElementById("hot-route").addEventListener("click", async function () {
+        const leadId = this.dataset.leadId;
+
+        await fetch(`/call-center/api/route-lead/${leadId}`, { method: "POST" });
+        alert("Lead routed successfully.");
+    });
+
+    // ⭐ Sticky Bar: Open Lead
+    document.getElementById("hot-open").addEventListener("click", function () {
+        const leadId = this.dataset.leadId;
+        window.location.href = `/call-center/leads/${leadId}`;
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!e.target.closest("#leadsTable")) {
+            document.getElementById("hot-action-bar").classList.add("d-none");
+        }
+    });
+
+    // ⭐ Pull-to-Refresh Logic
+    let startY = 0;
+    let isPulling = false;
+
+    const indicator = document.getElementById("pull-refresh-indicator");
+
+    document.addEventListener("touchstart", (e) => {
+        if (window.scrollY === 0) {
+            startY = e.touches[0].clientY;
+            isPulling = true;
+        }
+    });
+
+    document.addEventListener("touchmove", (e) => {
+        if (!isPulling) return;
+
+        const currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+
+        if (diff > 60) {
+            indicator.classList.remove("d-none");
+        }
+    });
+
+    document.addEventListener("touchend", () => {
+        if (!isPulling) return;
+
+        isPulling = false;
+
+        if (!indicator.classList.contains("d-none")) {
+            // ⭐ Trigger refresh
+            window.location.reload();
+        } else {
+            indicator.classList.add("active");
+        }
+    });
+
+});
+</script>
+
+<!-- ⭐ Floating Create Lead Button -->
+<button class="fab-create-lead">
+  <i class="ti ti-plus"></i>
+</button>
+<!-- ⭐ Sticky HOT Lead Action Bar -->
+<div id="hot-action-bar" class="hot-action-bar d-none">
+    <div class="hot-actions-container d-flex gap-3">
+
+        <button id="hot-call" class="btn btn-success flex-fill">
+            <i class="ti ti-phone"></i> Call
+        </button>
+
+        <button id="hot-text" class="btn btn-info flex-fill">
+            <i class="ti ti-message"></i> Text
+        </button>
+
+        <button id="hot-route" class="btn btn-warning flex-fill">
+            <i class="ti ti-repeat"></i> Route
+        </button>
+
+        <button id="hot-open" class="btn btn-primary flex-fill">
+            <i class="ti ti-arrow-right"></i> Open
+        </button>
+
+    </div>
+</div>
+
+{% endblock %}

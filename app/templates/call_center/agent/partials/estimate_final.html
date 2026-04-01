@@ -1,0 +1,49 @@
+<div id="estimate-final">
+
+  {% if estimate and estimate.final_scope %}
+    <div class="alert alert-success mb-3">
+      Final estimate approved on {{ estimate.approved_at.strftime("%Y-%m-%d %H:%M") }}
+    </div>
+  {% endif %}
+
+  <form 
+    hx-post="/call-center/leads/{{ lead.id }}/approve-estimate"
+    hx-target="#estimate-final"
+    hx-swap="outerHTML"
+  >
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">Final Scope of Work</label>
+      <textarea class="form-control" name="final_scope" rows="4">
+{{ estimate.final_scope or estimate.draft_scope }}
+      </textarea>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">Final Line-Item Estimate</label>
+      <textarea class="form-control" name="final_line_items" rows="4">
+{{ estimate.final_line_items or estimate.draft_line_items }}
+      </textarea>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">Final Material List</label>
+      <textarea class="form-control" name="final_materials" rows="4">
+{{ estimate.final_materials or estimate.draft_materials }}
+      </textarea>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">Final Schedule Window</label>
+      <textarea class="form-control" name="final_schedule" rows="3">
+{{ estimate.final_schedule or estimate.draft_schedule }}
+      </textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      Approve & Send Estimate
+    </button>
+
+  </form>
+
+</div>

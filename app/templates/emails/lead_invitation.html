@@ -1,0 +1,20 @@
+<h3>Why You Received This Lead</h3>
+
+<p><strong>Routing Tier:</strong> {{ lead.routing_tier|upper }}</p>
+<p><strong>Lead Score:</strong> {{ lead.lead_score }}</p>
+
+{% if routing_logs %}
+  {% with log=routing_logs.0 %}
+    <p><strong>Routing Rule:</strong> {{ log.rule_applied }}</p>
+    <p><strong>Reason:</strong> {{ log.reason }}</p>
+  {% endwith %}
+{% endif %}
+
+<hr>
+
+<h4>Match Factors</h4>
+<ul>
+  <li><strong>Service Match:</strong> {{ contractor_match.service_match|yesno:"Yes,No" }}</li>
+  <li><strong>Distance:</strong> {{ contractor_match.location_distance }} miles</li>
+  <li><strong>Availability:</strong> {{ contractor_match.availability|yesno:"Available,Not Available" }}</li>
+</ul>

@@ -1,0 +1,36 @@
+{# templates/contractors/license_detail.html #}
+{% extends layout_path %}
+{% load static %}
+{% block title %}{{ license.seo_title|default:license.name }}{% endblock %}
+{% block content %}
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h4 class="mb-0">{{ license.name }} ({{ license.state }})</h4>
+                </div>
+                <div class="card-body">
+                    {% if license.summary_section_title %}<h5>{{ license.summary_section_title }}</h5>{% endif %}
+                    <p>{{ license.summary_section_body|linebreaks }}</p>
+                    {% if license.application_tips_title %}<h5 class="mt-4">{{ license.application_tips_title }}</h5>{% endif %}
+                    <p>{{ license.application_tips_body|linebreaks }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted">License Info</h6>
+                    <p class="mb-1">
+                        <strong>State:</strong> {{ license.state }}
+                    </p>
+                    <p class="mb-0">
+                        <strong>Slug:</strong> {{ license.slug }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {# JSON-LD for SEO #}
+    {% if structured_data_json %}<script type="application/ld+json">{{ structured_data_json|safe }}</script>{% endif %}
+{% endblock %}

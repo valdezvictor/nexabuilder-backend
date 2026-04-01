@@ -1,0 +1,21 @@
+{% from "macros/verticals.html" import vertical_name, vertical_badge %}
+
+<div class="card">
+  <div class="card-header">
+    <h4 class="card-title">Routing Explanation</h4>
+  </div>
+
+  <div class="card-body">
+
+    {% if routing_logs %}
+      {% set log = routing_logs[0] %}
+
+      <p>{{ log.reason }}</p>
+
+    {% else %}
+      <p>No routing explanation available.</p>
+    {% endif %}
+
+  </div>
+</div>
+

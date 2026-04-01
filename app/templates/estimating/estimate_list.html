@@ -1,0 +1,128 @@
+{% extends "vuexy_base.html" %}
+{% load static %}
+{% block title %}Estimator · Estimates{% endblock %}
+{% block content %}
+    <div class="container-xxl py-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">Estimates</h4>
+            <a class="btn btn-primary" href="{% url 'estimating:estimate-create' %}">
+                <i class="ti ti-plus"></i> New Estimate
+            </a>
+        </div>
+        <form class="row gy-2 gx-2 align-items-end mb-3" method="get">
+            <div class="col-12 col-md-4">
+                <label class="form-label">Project / Client</label>
+                <input type="text"
+                       class="form-control"
+                       name="q"
+                       value="{{ request.GET.q|default:'' }}"
+                       placeholder="Search name or client…">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Any</option>
+                    {% for value,label in status_choices %}
+                        <option value="{{ value }}"
+                                {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label">Created After</label>
+                <input type="date"
+                       class="form-control"
+                       name="after"
+                       value="{{ request.GET.after|default:'' }}">
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-2">
+                <button class="btn btn-secondary w-100" type="submit">Filter</button>
+                <a class="btn btn-outline-secondary"
+                   href="{% url 'estimating:estimate-list' %}">Reset</a>
+            </div>
+        </form>
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th class="text-end">Subtotal</th>
+                            <th class="text-end">Tax</th>
+                            <th class="text-end">Margin</th>
+                            <th class="text-end">Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for est in page_obj %}
+                            <tr>
+                                <td>
+                                    <div class="fw-medium">{{ est.project.name }}</div>
+                                    <small class="text-muted">{{ est.project.client_name }}</small>
+                                </td>
+                                <td>v{{ est.version }}</td>
+                                <td>
+                                    <span class="badge bg-label-{% if est.status == 'approved' %}success{% elif est.status == 'rejected' %}danger{% elif est.status == 'sent' %}warning{% else %}secondary{% endif %}">
+                                        {{ est.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="text-end">{{ est.subtotal|floatformat:2 }}</td>
+                                <td class="text-end">{{ est.tax_amount|floatformat:2 }}</td>
+                                <td class="text-end">{{ est.margin_amount|floatformat:2 }}</td>
+                                <td class="text-end fw-bold">{{ est.total|floatformat:2 }}</td>
+                                <td class="text-end">
+                                    <div class="btn-group">
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           href="{% url 'estimating:estimate-edit' est.id %}">Edit</a>
+                                        <a class="btn btn-sm btn-outline-dark"
+                                           href="{% url 'estimating:estimate-print' est.id %}"
+                                           target="_blank">Print</a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">No estimates yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if is_paginated %}
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</small>
+                    <nav>
+                        <ul class="pagination mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.previous_page_number }}{{ keep_query }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_obj.number }}</span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.next_page_number }}{{ keep_query }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

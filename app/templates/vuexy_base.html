@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" class="light-style layout-menu-fixed layout-navbar-fixed">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}{% endblock %}</title>
+    {% block meta_data %}{% endblock %}
+        <!-- Core Vuexy CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', path='vuexy/vendor/css/core.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='vuexy/vendor/css/theme-default.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='vuexy/css/demo.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='vuexy/vendor/libs/perfect-scrollbar/perfect-scrollbar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='vuexy/vendor/fonts/tabler-icons.css') }}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+
+    {% block vendor_css %}{% endblock %}
+    {% block page_css %}{% endblock %}
+    
+</head>
+
+<body>
+<div class="layout-wrapper layout-content-navbar">
+    <div class="layout-container">
+
+        <!-- Sidebar -->
+        <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+            <div class="app-brand demo px-3 py-2">
+                <a href="/admin" class="app-brand-link">
+                    <span class="app-brand-text demo fw-bold">NexA Builder</span>
+                </a>
+            </div>
+
+            <ul class="menu-inner py-1">
+                <li class="menu-item">
+                    <a class="menu-link" href="/admin">
+                        <i class="menu-icon tf-icons bx bx-grid-alt"></i>
+                        <div>Dashboard</div>
+                    </a>
+                </li>
+
+                <li class="menu-item">
+                    <a class="menu-link" href="/estimating/estimates">
+                        <i class="menu-icon tf-icons bx bx-calculator"></i>
+                        <div>Home Improvement</div>
+                    </a>
+                </li>
+
+                <li class="menu-item">
+                    <a class="menu-link" href="/jobs/search/">
+                        <i class="menu-icon tf-icons bx bx-briefcase"></i>
+                        <div>Jobs</div>
+                    </a>
+                </li>
+
+                <li class="menu-item">
+                    <a class="menu-link" href="/education/">
+                        <i class="menu-icon tf-icons bx bx-book"></i>
+                        <div>Education</div>
+                    </a>
+                </li>
+
+                <li class="menu-item">
+                    <a class="menu-link" href="/finance/">
+                        <i class="menu-icon tf-icons bx bx-dollar-circle"></i>
+                        <div>Finance</div>
+                    </a>
+                </li>
+
+                <li class="menu-item">
+                    <a class="menu-link" href="/leads">
+                        <i class="menu-icon tf-icons bx bx-user-voice"></i>
+                        <div>Clients / Advertisers</div>
+                    </a>
+                </li>
+
+                <li class="menu-item">
+                    <a class="menu-link" href="/ecommerce/">
+                        <i class="menu-icon tf-icons bx bx-cart"></i>
+                        <div>eCommerce</div>
+                    </a>
+                </li>
+            </ul>
+        </aside>
+        <!-- /Sidebar -->
+
+        <div class="layout-page">
+
+            <!-- Top navbar -->
+            <nav id="layout-navbar"
+                 class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme">
+
+                <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
+                    <ul class="navbar-nav flex-row align-items-center ms-auto">
+
+                        <li class="nav-item me-3">
+                            <a class="nav-link" href="/admin">Dashboard</a>
+                        </li>
+
+                        <li class="nav-item me-3">
+                            <a class="nav-link" href="/estimating/estimates">Home Improvement</a>
+                        </li>
+
+                        <li class="nav-item me-3">
+                            <a class="nav-link" href="/jobs/search/">Jobs Search</a>
+                        </li>
+
+                        <li class="nav-item me-3">
+                            <a class="nav-link" href="/leads">Leads</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <form action="/logout" method="post" class="d-inline">
+                                <button class="btn btn-sm btn-outline-secondary">Sign out</button>
+                            </form>
+                        </li>
+
+                    </ul>
+                </div>
+            </nav>
+
+            <div class="content-wrapper">
+                <div class="container-xxl flex-grow-1 container-p-y">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+{% block vendor_js %}
+    <!-- Core JS -->
+    <script src="{{ url_for('static', path='vuexy/vendor/libs/jquery/jquery.js') }}"></script>
+    <script src="{{ url_for('static', path='vuexy/vendor/libs/popper/popper.js') }}"></script>
+    <script src="{{ url_for('static', path='vuexy/vendor/js/bootstrap.js') }}"></script>
+    <script src="{{ url_for('static', path='vuexy/vendor/libs/perfect-scrollbar/perfect-scrollbar.js') }}"></script>
+    <script src="{{ url_for('static', path='vuexy/vendor/js/menu.js') }}"></script>
+
+    <!-- ApexCharts -->
+    <script src="{{ url_for('static', path='vuexy/vendor/libs/apex-charts/apexcharts.js') }}"></script>
+{% endblock %}
+{% block page_js %}
+    <script src="{{ url_for('static', path='js/agent_lead_details.js') }}"></script>
+{% endblock %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+</body>
+</html>

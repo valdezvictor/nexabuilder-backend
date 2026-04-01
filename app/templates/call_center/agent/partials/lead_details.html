@@ -1,0 +1,139 @@
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">Lead Overview</h5>
+  </div>
+
+  <div class="card-body">
+    <!-- Quick Summary -->
+    <div class="mb-3">
+      <h6 class="fw-bold text-primary">Quick Summary</h6>
+      <!-- Customer Details -->
+      <!-- Customer Name adding to make sure this is loading-->
+      <p class="mb-1"><strong>Customer:</strong>
+        {% if lead.first_name or lead.last_name %}
+          {{ lead.first_name }} {{ lead.last_name }}
+        {% else %}
+          Unknown
+        {% endif %}
+      </p>
+      <!-- Email -->
+      <p class="mb-1"><strong>Email:</strong>
+        {% if lead.email %}
+          {{ lead.email }}
+        {% else %}
+          Not provided
+        {% endif %}
+      </p>
+      <!-- Phone -->
+      <p class="mb-1"><strong>Phone:</strong>
+        {% if lead.phone %}
+          {{ lead.phone }}
+        {% else %}
+          Not provided
+        {% endif %}
+      </p>
+      <!-- Address -->
+      <p class="mb-1"><strong>Address:</strong>
+        {% if lead.address_line1 %}
+          {{ lead.address_line1 }}<br>
+          {% if lead.address_line2 %}{{ lead.address_line2 }}<br>{% endif %}
+          {{ lead.city }}, {{ lead.state }} {{ lead.postal_code }}
+        {% else %}
+          Not provided
+        {% endif %}
+      </p>
+      <!-- Project Details -->
+      <p class="mb-1"><strong>Project:</strong> {{ lead.project_type }}</p>
+            <p class="mb-1"><strong>Vertical:</strong>
+        {% from "macros/verticals.html" import vertical_badge %}
+        {{ vertical_badge(lead.vertical) }}
+      </p>
+      <p class="mb-1"><strong>Location:</strong> {{ lead.city }}, {{ lead.state }}</p>
+      <p class="mb-1"><strong>Budget:</strong> 
+        {% if lead.budget_min and lead.budget_max %}
+          ${{ lead.budget_min }} – ${{ lead.budget_max }}
+        {% else %}
+          Not provided
+        {% endif %}
+      </p>
+      <!-- Lead Source and Score -->
+      <p class="mb-1"><strong>Source:</strong> {{ lead.source }}</p>
+      <p class="mb-1"><strong>Score:</strong>
+        {% if routing_logs and routing_logs[0].score is not none %}
+          {{ routing_logs[0].score }}
+        {% else %}
+          {{ lead.lead_score }}
+        {% endif %}
+      </p>
+    </div>
+
+    <hr>
+
+    <!-- Call Script -->
+    <div class="mb-3">
+      <h6 class="fw-bold text-primary">Call Script</h6>
+
+      <p class="text-muted small mb-2">Use this script when speaking with the homeowner.</p>
+
+      {% for line in call_script %}
+        <p>{{ line }}</p>
+      {% endfor %}
+
+      <ol class="ps-3">
+        <li class="mb-2">
+          <strong>Confirm project details:</strong><br>
+          “Hi <em>{{ lead.first_name }}</em>,I see you're looking for help with <em>{{ lead.project_type }}</em>in <em>{{ lead.city }}</em>.  
+          Can you tell me a bit more about what you're trying to get done?”
+        </li>
+
+        <li class="mb-2">
+          <strong>Confirm location:</strong><br>
+          “And the project is at <em>{{ lead.city }}, {{ lead.state }}</em>, correct?”
+        </li>
+
+        <li class="mb-2">
+          <strong>Confirm timeline:</strong><br>
+          “When are you hoping to start this project?”
+        </li>
+
+        <li class="mb-2">
+          <strong>Confirm budget:</strong><br>
+          “Do you have a budget range in mind for this project?”
+        </li>
+
+        <li class="mb-2">
+          <strong>Confirm access + constraints:</strong><br>
+          “Is there anything we should know about access, pets, gates, or special conditions?”
+        </li>
+
+        <li class="mb-2">
+          <strong>Request photos:</strong><br>
+          “If you can send us a few photos, that will help us prepare an accurate estimate.”
+        </li>
+      </ol>
+    </div>
+
+    <hr>
+
+    <!-- Raw Description -->
+    <div>
+      <h6 class="fw-bold text-primary">Customer Description</h6>
+      <p>{{ lead.description }}</p>
+    </div>
+
+  </div>
+</div>
+<br>
+<!-- Score Breakdown -->
+{% if routing_logs %}
+  {% set log = routing_logs[0] %}
+
+  <div class="card mb-3">
+    <div class="card-header">
+      <h4 class="card-title">Score Breakdown</h4>
+    </div>
+    <div class="card-body">
+      <p>{{ log.reason }}</p>
+    </div>
+  </div>
+{% endif %}

@@ -1,0 +1,77 @@
+{% extends "vuexy_base.html" %}
+{% block title %}Finance Test Lead{% endblock %}
+{% block content %}
+    <div class="card p-3">
+        <div class="alert alert-info mb-3">
+            <i class="ti ti-info-circle me-1"></i>
+            This form sends a sample lead to <code>/api/finance/route/</code>.
+            It pings all eligible lenders, then posts to the winner.
+            Use real states/amounts/credit bands to exercise rules & caps.
+        </div>
+        <h5 class="mb-3">Test Lead (Route)</h5>
+        <form id="f">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="first_name"
+                           placeholder="First name"
+                           value="Ava">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="last_name"
+                           placeholder="Last name"
+                           value="Ng">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="email"
+                           placeholder="Email"
+                           value="ava@ex.com">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="phone"
+                           placeholder="Phone"
+                           value="5551234567">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control" name="state" placeholder="State" value="CA">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="loan_amount"
+                           placeholder="Loan amount"
+                           value="12000">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="monthly_income"
+                           placeholder="Monthly income"
+                           value="6000">
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control"
+                           name="credit_band"
+                           placeholder="Credit band"
+                           value="B">
+                </div>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary">Route</button>
+            </div>
+        </form>
+        <pre class="mt-3" id="out"></pre>
+    </div>
+{% endblock %}
+{% block body_extra %}
+    <script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = Object.fromEntries(fd.entries());
+  const r = await fetch('/api/finance/route/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  document.getElementById('out').textContent = await r.text();
+});
+    </script>
+{% endblock %}

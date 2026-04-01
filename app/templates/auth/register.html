@@ -1,0 +1,121 @@
+{% extends "auth_base.html" %}
+{% load static %}
+{% load i18n %}
+{% block title %}Register - DotSchools{% endblock %}
+{% block vendor_css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/libs/@form-validation/form-validation.css' %}" />
+{% endblock vendor_css %}
+{% block vendor_js %}
+    {{ block.super }}
+    <script src="{% static 'vuexy/vendor/libs/@form-validation/popular.js' %}"></script>
+    <script src="{% static 'vuexy/vendor/libs/@form-validation/bootstrap5.js' %}"></script>
+    <script src="{% static 'vuexy/vendor/libs/@form-validation/auto-focus.js' %}"></script>
+{% endblock vendor_js %}
+{% block page_css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/css/pages/page-auth.css' %}" />
+{% endblock page_css %}
+{% block page_js %}
+    {{ block.super }}
+    <script src="{% static 'assets/js/pages-auth.js' %}"></script>
+{% endblock page_js %}
+{% block content %}
+    <div class="authentication-wrapper authentication-cover">
+        <!-- Logo -->
+        <a href="{% url 'index' %}" class="app-brand auth-cover-brand">
+            <span class="app-brand-logo demo">{% include 'partials/logo.html' with height=20 bgcolor="fill: #fff;" %}</span>
+            <span class="app-brand-text demo text-heading fw-bold">:DotSchools</span>
+        </a>
+        <!-- /Logo -->
+        <div class="authentication-inner row m-0">
+            <!-- Left illustration -->
+            <div class="d-none d-lg-flex col-lg-8 p-0">
+                <div class="auth-cover-bg auth-cover-bg-color d-flex justify-content-center align-items-center">
+                    <img src="{% static 'assets/img/illustrations/auth-register-illustration-light.png' %}"
+                         alt="auth-register-cover"
+                         class="my-5 auth-illustration"
+                         data-app-light-img="illustrations/auth-register-illustration-light.png"
+                         data-app-dark-img="illustrations/auth-register-illustration-dark.png">
+                    <img src="{% static 'assets/img/illustrations/bg-shape-image-light.png' %}"
+                         alt="auth-register-cover"
+                         class="platform-bg"
+                         data-app-light-img="illustrations/bg-shape-image-light.png"
+                         data-app-dark-img="illustrations/bg-shape-image-dark.png">
+                </div>
+            </div>
+            <!-- /Left illustration -->
+            <!-- Register form -->
+            <div class="d-flex col-12 col-lg-4 align-items-center authentication-bg p-sm-12 p-6">
+                <div class="w-px-400 mx-auto mt-12 pt-5">
+                    <h4 class="mb-1">Adventure starts here 🚀</h4>
+                    <p class="mb-6">Make your app management easy and fun!</p>
+                    <form id="formAuthentication"
+                          class="mb-6"
+                          action="{% url 'register' %}"
+                          method="post"
+                          novalidate>
+                        {% csrf_token %}
+                        {# flash / form messages #}
+                        {% if messages %}
+                            {% for m in messages %}<div class="alert alert-{{ m.tags|default:'danger' }} small mb-3">{{ m }}</div>{% endfor %}
+                        {% endif %}
+                        {# field-by-field rendering so we don't assume field names #}
+                        {% if form.non_field_errors %}<div class="alert alert-danger small mb-3">{{ form.non_field_errors }}</div>{% endif %}
+                        {% for field in form %}
+                            <div class="mb-6">
+                                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                            </div>
+                        {% endfor %}
+                        <div class="mb-6 mt-8">
+                            <div class="form-check mb-8 ms-2">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="terms-conditions"
+                                       name="terms">
+                                <label class="form-check-label" for="terms-conditions">
+                                    I agree to
+                                    <a href="javascript:void(0);">privacy policy &amp; terms</a>
+                                </label>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary d-grid w-100" type="submit">Sign up</button>
+                    </form>
+                    <p class="text-center">
+                        <span>Already have an account?</span>
+                        <a href="{% url 'login' %}">
+                            <span>Sign in instead</span>
+                        </a>
+                    </p>
+                    <div class="divider my-6">
+                        <div class="divider-text">or</div>
+                    </div>
+                    <div class="d-flex justify-content-center">
+                        <a href="javascript:;"
+                           class="btn btn-sm btn-icon rounded-pill btn-text-facebook me-1_5">
+                            <i class="tf-icons ti ti-brand-facebook-filled"></i>
+                        </a>
+                        <a href="javascript:;"
+                           class="btn btn-sm btn-icon rounded-pill btn-text-twitter me-1_5">
+                            <i class="tf-icons ti ti-brand-twitter-filled"></i>
+                        </a>
+                        <a href="javascript:;"
+                           class="btn btn-sm btn-icon rounded-pill btn-text-github me-1_5">
+                            <i class="tf-icons ti ti-brand-github-filled"></i>
+                        </a>
+                        <a href="javascript:;"
+                           class="btn btn-sm btn-icon rounded-pill btn-text-google-plus">
+                            <i class="tf-icons ti ti-brand-google-filled"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Register form -->
+        </div>
+    </div>
+{% endblock content %}

@@ -1,0 +1,30 @@
+{% extends "vuexy_base.html" %}
+{% block title %}Routing Debug · Lead {{ lead.id }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">Routing Debug — Lead #{{ lead.id }}</h5>
+  </div>
+  <div class="card-body">
+    {% if routing_logs %}
+      {% for log in routing_logs %}
+        <div class="mb-3 border-bottom pb-2">
+          <p><strong>Timestamp:</strong> {{ log.created_at }}</p>
+          <p><strong>Tier:</strong> {{ log.routing_tier }}</p>
+          <p><strong>Score:</strong> {{ log.score }}</p>
+          <p><strong>Age (hrs):</strong> {{ log.age_hours }}</p>
+          <p><strong>Vertical:</strong> {{ log.vertical }}</p>
+          <p><strong>Rule:</strong> {{ log.rule_applied }}</p>
+          <p><strong>Explanation:</strong> {{ log.reason }}</p>
+          {% if log.alerts %}
+            <p><strong>Alerts:</strong> {{ log.alerts }}</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="text-muted">No routing logs for this lead.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

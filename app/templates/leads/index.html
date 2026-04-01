@@ -1,0 +1,59 @@
+{% extends "vuexy_base.html" %}
+{% load static %}
+{% block title %}Leads · DotSchools{% endblock %}
+{% block vendor_css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/libs/datatables-bs5/datatables.bootstrap5.css' %}">
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css' %}">
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.css' %}">
+    <link rel="stylesheet"
+          href="{% static 'vuexy/vendor/libs/flatpickr/flatpickr.css' %}">
+{% endblock %}
+{% block vendor_js %}
+    {{ block.super }}
+    <!-- Core DataTables + Bootstrap5 integration (Vuexy paths) -->
+    <script src="{% static 'vuexy/vendor/libs/datatables/jquery.dataTables.min.js' %}"></script>
+    <script src="{% static 'vuexy/vendor/libs/datatables-bs5/datatables-bootstrap5.js' %}"></script>
+    <script src="{% static 'vuexy/vendor/libs/flatpickr/flatpickr.js' %}"></script>
+{% endblock %}
+{% block content %}
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h5 class="mb-0">Leads</h5>
+            <a class="btn btn-sm btn-primary" href="?format=csv">Export CSV</a>
+        </div>
+        <div class="card-datatable table-responsive">
+            <table id="leads-table" class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Created</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Source</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+{% endblock %}
+{% block page_js %}
+    {{ block.super }}
+    <script>
+    $(function () {
+      $('#leads-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: '/leads/api/data/',
+        pageLength: 25,
+        order: [[0, 'desc']],
+        responsive: true
+      });
+    });
+    </script>
+{% endblock %}

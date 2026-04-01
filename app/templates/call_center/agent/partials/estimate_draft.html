@@ -1,0 +1,36 @@
+<div id="estimate-draft">
+
+  {% if estimate and estimate.draft_scope %}
+    <div class="card mb-3">
+      <div class="card-header">
+        <h5 class="mb-0">AI Draft Estimate</h5>
+      </div>
+      <div class="card-body">
+
+        <h6 class="fw-bold">Draft Scope of Work</h6>
+        <p>{{ estimate.draft_scope }}</p>
+
+        <h6 class="fw-bold mt-3">Draft Line-Item Estimate</h6>
+        <pre class="bg-light p-3">{{ estimate.draft_line_items }}</pre>
+
+        <h6 class="fw-bold mt-3">Draft Material List</h6>
+        <pre class="bg-light p-3">{{ estimate.draft_materials }}</pre>
+
+        <h6 class="fw-bold mt-3">Draft Schedule Window</h6>
+        <p>{{ estimate.draft_schedule }}</p>
+
+      </div>
+    </div>
+  {% else %}
+    <p class="text-muted">No draft generated yet.</p>
+  {% endif %}
+
+  <button 
+    hx-post="/call-center/leads/{{ lead.id }}/generate-estimate"
+    hx-target="#estimate-draft"
+    class="btn btn-primary mt-3"
+  >
+    Generate AI Draft Estimate
+  </button>
+
+</div>
