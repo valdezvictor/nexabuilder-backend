@@ -1,6 +1,6 @@
 # app/models/lead.py
 
-from sqlalchemy import Integer, String, Float, JSON, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, func, Boolean
 from sqlalchemy.orm import mapped_column, relationship
 from app.db import Base
 
@@ -16,6 +16,8 @@ class Lead(Base):
     # Contact / context
     phone = mapped_column(String(50), nullable=True)
     email = mapped_column(String(255), nullable=True)
+    first_name = mapped_column(String(100), nullable=True)
+    last_name = mapped_column(String(100), nullable=True)
     budget_max = mapped_column(Integer, nullable=True)
     vertical = mapped_column(String(100), nullable=True)
 
@@ -39,3 +41,4 @@ class Lead(Base):
     contractor = relationship("Contractor", back_populates="leads")
     trade = relationship("Trade", back_populates="leads")
     zip = relationship("ZipCode", back_populates="leads")
+    routing_tier = Column(Integer, default=1) # Ensure this matches your DB type

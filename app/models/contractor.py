@@ -1,6 +1,4 @@
-# app/models/contractor.py
-
-from sqlalchemy import Integer, String, DateTime, Float, func
+from sqlalchemy import Integer, String, DateTime, Float, func, Boolean
 from sqlalchemy.orm import mapped_column, relationship
 from app.db import Base
 
@@ -45,3 +43,10 @@ class Contractor(Base):
     licenses = relationship("License", back_populates="contractor")
     leads = relationship("Lead", back_populates="contractor")
     trades = relationship("Trade", secondary="contractor_trades", back_populates="contractors")
+
+    # Routing / capacity
+    is_active = mapped_column(Boolean, nullable=False, server_default="true")  # can receive leads
+    daily_capacity = mapped_column(Integer, nullable=True)  # max leads/day
+    active_leads_count = mapped_column(Integer, nullable=False, server_default="0")
+    performance_score = mapped_column(Float, nullable=True)  # rolling performance metric
+    last_assigned_at = mapped_column(DateTime(timezone=True), nullable=True)
