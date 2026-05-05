@@ -1,4 +1,6 @@
 import os
+from sqlalchemy import create_engine
+from app.core.config import settings
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,7 +25,12 @@ if not database_url:
 # Convert async URL to sync URL for Alembic
 sync_url = database_url.replace("+asyncpg", "")
 
-config.set_main_option("sqlalchemy.url", sync_url)
+config.set_main_option(
+    "sqlalchemy.url",
+    "postgresql+psycopg2://nexabuilder_admin:Nexa!2026-Prod-DB@"
+    "nexabuilder-prod-db.cyfiieky5gzb.us-west-1.rds.amazonaws.com"
+    ":5432/postgres"
+)
 
 # Logging
 if config.config_file_name is not None:
@@ -50,7 +57,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = settings.DATABASE_URL.replace("+asyncpg", "")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -69,10 +76,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+    connectable = create_engine(
+        settings.DATABASE_URL.replace("+asyncpg", "")
     )
 
     with connectable.connect() as connection:

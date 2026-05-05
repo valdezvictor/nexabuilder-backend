@@ -1,0 +1,175 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.db import get_db
+from app.models.contractor import Contractor
+from app.models.lead import Lead
+from app.services.routing_v2 import rank_contractors, compute_contractor_score
+from prometheus_client import Counter, Histogram
+from datetime import datetime
+from app.models.routing_event import RoutingEvent
+
+router = APIRouter(prefix="/api/routing", tags=["Routing"])
+
+ROUTING_REQUESTS = Counter("routing_requests_total", "Total routing requests")
+ROUTING_LATENCY = Histogram("routing_latency_seconds", "Routing latency")
+
+class RoutingResponsePayload(BaseModel):
+    lead_id: int
+    contractor_id: int
+    response: str  # "accepted" | "declined" | "no_response" | "completed"
+
+@router.post("/score")
+async def score_lead(lead_id: int, db: AsyncSession = Depends(get_db)):
+    ROUTING_REQUESTS.inc()
+
+    lead = await db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+
+    result = await db.execute(
+        select(Contractor).options(selectinload(Contractor.trades))
+    )
+    contractors = result.scalars().all()
+
+    with ROUTING_LATENCY.time():
+        ranked = rank_contractors(contractors, lead)
+
+    return {"lead_id": lead_id, "ranked_contractors": ranked}
+
+@router.post("/explain")
+async def explain_contractor(lead_id: int, contractor_id: int, db: AsyncSession = Depends(get_db)):
+    lead = await db.get(Lead, lead_id)
+    contractor = await db.get(Contractor, contractor_id)
+
+    if not lead or not contractor:
+        raise HTTPException(404, "Lead or contractor not found")
+
+    return compute_contractor_score(contractor, lead)
+
+@router.post("/assign")
+async def assign_lead(lead_id: int, db: AsyncSession = Depends(get_db)):
+    lead = await db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+
+    result = await db.execute(
+        select(Contractor).options(selectinload(Contractor.trades))
+    )
+    contractors = result.scalars().all()
+
+    ranked = rank_contractors(contractors, lead)
+
+    if not ranked:
+        event = RoutingEvent(
+            lead_id=lead.id,
+            contractor_id=None,
+            event_type="no_match",
+            payload={"reason": "no_eligible_contractors"},
+        )
+        db.add(event)
+        await db.commit()
+        raise HTTPException(400, "No eligible contractors")
+
+    best = ranked[0]
+    contractor = await db.get(Contractor, best["contractor_id"])
+
+    lead.contractor_id = contractor.id
+    contractor.active_leads_count = (contractor.active_leads_count or 0) + 1
+    contractor.last_assigned_at = datetime.utcnow()
+
+    event = RoutingEvent(
+        lead_id=lead.id,
+        contractor_id=contractor.id,
+        event_type="assigned",
+        payload={"score": best["score"], "explanations": best["explanations"]},
+    )
+
+@router.post("/response")
+async def routing_response(
+    payload: RoutingResponsePayload,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Contractor responds to a routed lead.
+
+    response:
+      - "accepted"
+      - "declined"
+      - "no_response"
+      - "completed"
+    """
+
+    # Validate response type
+    valid_responses = {"accepted", "declined", "no_response", "completed"}
+    if payload.response not in valid_responses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid response type: {payload.response}",
+        )
+
+    # Load lead and contractor
+    lead = await db.get(Lead, payload.lead_id)
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+
+    contractor = await db.get(Contractor, payload.contractor_id)
+    if not contractor:
+        raise HTTPException(404, "Contractor not found")
+
+    # Optional: ensure this contractor is actually assigned to this lead
+    if lead.contractor_id is not None and lead.contractor_id != contractor.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Contractor is not assigned to this lead",
+        )
+
+    # Adjust active_leads_count based on response
+    # - accepted: keep count as-is (already incremented on assign)
+    # - completed: decrement active_leads_count
+    # - declined / no_response: decrement active_leads_count
+    if payload.response in {"completed", "declined", "no_response"}:
+        current = contractor.active_leads_count or 0
+        contractor.active_leads_count = max(0, current - 1)
+
+    # Update performance score (async helper in routing_v2)
+    await update_performance_score(
+        db=db,
+        contractor=contractor,
+        event_type=payload.response,
+        lead=lead,
+    )
+
+    # Log routing_event for this response
+    event = RoutingEvent(
+        lead_id=lead.id,
+        contractor_id=contractor.id,
+        event_type=f"response_{payload.response}",
+        payload={
+            "lead_id": lead.id,
+            "contractor_id": contractor.id,
+            "response": payload.response,
+        },
+        created_at=datetime.utcnow(),
+    )
+    db.add(event)
+
+    # Persist changes
+    await db.commit()
+    await db.refresh(contractor)
+
+    return {
+        "status": "ok",
+        "contractor_id": contractor.id,
+        "lead_id": lead.id,
+        "response": payload.response,
+        "performance_score": contractor.performance_score,
+        "active_leads_count": contractor.active_leads_count,
+    }
+
+
+    db.add(event)
+    await db.commit()
+
+    return {"assigned_to": best}
