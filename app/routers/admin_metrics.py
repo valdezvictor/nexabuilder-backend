@@ -139,13 +139,11 @@ async def dashboard_stats(user: dict = Depends(get_current_user)):
             )
             active_partners = partners_result.scalar() or 0
 
-        db_ok = await test_connection() == 1
-
         return {
             "total_leads":      total_leads,
             "routing_success":  "N/A",
             "active_partners":  active_partners,
-            "system_status":    "healthy" if db_ok else "degraded",
+            "system_status":    "healthy",
         }
     except Exception as e:
         return {
