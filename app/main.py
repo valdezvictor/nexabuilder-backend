@@ -33,7 +33,7 @@ if os.path.isdir("app/static"):
     application.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # ── Routers ──────────────────────────────────────────────────────────────────
-application.include_router(auth.router)
+application.include_router(auth.router, prefix="/api")
 application.include_router(enrichment_router)
 application.include_router(call_center_router, prefix="/call-center")
 application.include_router(trades_router)
