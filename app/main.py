@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, Counter, Gauge, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.responses import Response
+from fastapi.middleware.cors import CORSMiddleware
 
 # ── Only import routers that actually exist on EC2 ───────────────────────────
 from app.api.enrichment import router as enrichment_router
@@ -29,6 +30,23 @@ DB_HEALTH = Gauge("db_health", "Database connection health (1=ok, 0=fail)")
 
 # ── App ──────────────────────────────────────────────────────────────────────
 application = FastAPI(title="NexaBuilder API", redirect_slashes=True)
+
+# CORS — allow all NexaBuilder tenant origins
+application.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://admin.nexabuilder.com",
+        "https://contractor.nexabuilder.com",
+        "https://call.nexabuilder.com",
+        "https://partners.nexabuilder.com",
+        "https://member.nexabuilder.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if os.path.isdir("app/static"):
     from fastapi.staticfiles import StaticFiles
