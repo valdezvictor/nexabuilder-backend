@@ -17,6 +17,8 @@ from app.routers.api.leads import router as leads_router
 from app.routers.api.routing import router as routing_router
 from app.routers.metrics import router as metrics_router
 from app.routers import auth
+from app.routers.admin_metrics import router as admin_metrics_router
+from app.routers.admin_metrics import dashboard_router
 from app.db import test_connection
 
 load_dotenv()
@@ -43,6 +45,8 @@ application.include_router(contractors_api_router)
 application.include_router(leads_router)
 application.include_router(routing_router)
 application.include_router(metrics_router)
+application.include_router(admin_metrics_router)
+application.include_router(dashboard_router)
 
 # ── Prometheus instrumentation ───────────────────────────────────────────────
 Instrumentator().instrument(application).expose(application)
