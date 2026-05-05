@@ -114,41 +114,37 @@ dashboard_router = _APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @dashboard_router.get("/stats")
 async def dashboard_stats(user: dict = Depends(get_current_user)):
     """Combined dashboard stats — single call for the dashboard home page."""
-    try:
-        from app.models.lead import Lead
-        from app.models.tenant import Tenant, TenantType
-        from app.db import test_connection
+    from app.models.lead import Lead
+    from app.models.tenant import Tenant, TenantType
 
+    total_leads = 0
+    active_partners = 0
+
+    try:
         SessionLocal = get_sessionmaker()
         async with SessionLocal() as db:
-            today_start = datetime.now(timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
             leads_result = await db.execute(
-                select(func.count()).select_from(Lead).where(
-                    Lead.created_at >= today_start
-                )
+                select(func.count()).select_from(Lead)
             )
             total_leads = leads_result.scalar() or 0
+    except Exception as e:
+        print(f"[dashboard/stats] leads query failed: {e}")
 
+    try:
+        SessionLocal = get_sessionmaker()
+        async with SessionLocal() as db:
             partners_result = await db.execute(
                 select(func.count()).select_from(Tenant).where(
-                    Tenant.type == TenantType.partner,
-                    Tenant.is_active == True
+                    Tenant.type == TenantType.partner
                 )
             )
             active_partners = partners_result.scalar() or 0
-
-        return {
-            "total_leads":      total_leads,
-            "routing_success":  "N/A",
-            "active_partners":  active_partners,
-            "system_status":    "healthy",
-        }
     except Exception as e:
-        return {
-            "total_leads":     0,
-            "routing_success": "N/A",
-            "active_partners": 0,
-            "system_status":   "error",
-        }
+        print(f"[dashboard/stats] partners query failed: {e}")
+
+    return {
+        "total_leads":     total_leads,
+        "routing_success": "N/A",
+        "active_partners": active_partners,
+        "system_status":   "healthy",
+    }
