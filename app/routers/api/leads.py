@@ -1,72 +1,124 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+# app/routers/api/leads.py
+# Corrected from Copilot version:
+# - Uses get_sessionmaker() not get_async_session()
+# - Uses integer Lead.id not UUID
+# - Scopes by contractor_id not tenant_id (Lead has no tenant_id)
+# - No Lead.Read schema — returns dicts
+# - Prefix is /api/leads (no double /api)
+# - get_current_user returns {"user": User, "tenant": Tenant, "role": str}
 
-from app.db import get_db
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, update
+from pydantic import BaseModel
+
+from app.core.auth import get_current_user
+from app.db import get_sessionmaker
 from app.models.lead import Lead
-from app.models.contractor import Contractor
-from app.models.routing_event import RoutingEvent
-from app.schemas.lead_timeline import LeadTimelineResponse, TimelineEvent, AssignedContractor
-
 
 router = APIRouter(prefix="/api/leads", tags=["Leads"])
 
 
-@router.get("/{lead_id}/timeline", response_model=LeadTimelineResponse)
-async def get_lead_timeline(
-    lead_id: int,
-    db: AsyncSession = Depends(get_db),
+def _lead_to_dict(lead: Lead) -> dict:
+    return {
+        "id":         lead.id,
+        "first_name": lead.first_name,
+        "last_name":  lead.last_name,
+        "email":      lead.email,
+        "phone":      lead.phone,
+        "vertical":   lead.vertical,
+        "postal_code": lead.postal_code,
+        "city":       lead.city,
+        "state":      lead.state,
+        "ai_score":   lead.ai_score,
+        "routing_tier": lead.routing_tier,
+        "created_at": str(lead.created_at) if lead.created_at else None,
+    }
+
+
+@router.get("")
+async def list_leads(
+    status: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    identity: dict = Depends(get_current_user),
 ):
-    lead = await db.get(Lead, lead_id)
-    if not lead:
-        raise HTTPException(404, "Lead not found")
+    """List leads — scoped by contractor_id for contractor role."""
+    user = identity["user"]
+    role = identity["role"]
 
-    contractor = None
-    if lead.contractor_id:
-        contractor = await db.get(Contractor, lead.contractor_id)
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        stmt = select(Lead)
 
-    result = await db.execute(
-        select(RoutingEvent)
-        .where(RoutingEvent.lead_id == lead.id)
-        .order_by(RoutingEvent.created_at.asc())
-    )
-    events = result.scalars().all()
+        # Contractors only see their assigned leads
+        if role == "contractor":
+            stmt = stmt.where(Lead.contractor_id == user.id)
 
-    timeline_events = [
-        TimelineEvent(
-            id=e.id,
-            event_type=e.event_type,
-            payload=e.payload,
-            created_at=e.created_at,
-            contractor_id=e.contractor_id,
+        stmt = stmt.order_by(Lead.created_at.desc()).limit(limit).offset(offset)
+        result = await db.execute(stmt)
+        leads = result.scalars().all()
+        return [_lead_to_dict(l) for l in leads]
+
+
+@router.get("/{lead_id}")
+async def get_lead(
+    lead_id: int,
+    identity: dict = Depends(get_current_user),
+):
+    """Get a single lead by ID."""
+    user = identity["user"]
+    role = identity["role"]
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        stmt = select(Lead).where(Lead.id == lead_id)
+
+        if role == "contractor":
+            stmt = stmt.where(Lead.contractor_id == user.id)
+
+        result = await db.execute(stmt)
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return _lead_to_dict(lead)
+
+
+class LeadStatusUpdate(BaseModel):
+    status: str
+
+
+@router.put("/{lead_id}/status")
+async def update_lead_status(
+    lead_id: int,
+    payload: LeadStatusUpdate,
+    identity: dict = Depends(get_current_user),
+):
+    """Update lead status."""
+    user = identity["user"]
+    role = identity["role"]
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        # Verify access
+        stmt = select(Lead).where(Lead.id == lead_id)
+        if role == "contractor":
+            stmt = stmt.where(Lead.contractor_id == user.id)
+
+        result = await db.execute(stmt)
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+
+        # Update
+        await db.execute(
+            update(Lead)
+            .where(Lead.id == lead_id)
+            .values(routing_tier=payload.status)  # using routing_tier as status proxy
         )
-        for e in events
-    ]
+        await db.commit()
 
-    performance_deltas = [
-        float(e.payload.get("delta"))
-        for e in events
-        if e.event_type.startswith("performance_")
-        and isinstance(e.payload, dict)
-        and "delta" in e.payload
-    ]
-
-    contractor_payload = None
-    if contractor:
-        contractor_payload = AssignedContractor(
-            id=contractor.id,
-            name=getattr(contractor, "name", ""),
-            performance_score=contractor.performance_score,
-        )
-
-    return LeadTimelineResponse(
-        id=lead.id,
-        vertical=lead.vertical,
-        city=lead.city,
-        state=lead.state,
-        ai_score=getattr(lead, "ai_score", None),
-        contractor=contractor_payload,
-        events=timeline_events,
-        performance_deltas=performance_deltas,
-    )
+        # Refetch
+        result = await db.execute(select(Lead).where(Lead.id == lead_id))
+        updated = result.scalar_one()
+        return _lead_to_dict(updated)
