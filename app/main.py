@@ -107,3 +107,9 @@ async def root():
     return {"message": "NexaBuilder API is running"}
 
 app = application
+
+from fastapi import Request as _Request
+
+@application.get("/api/debug-headers")
+async def debug_headers(request: _Request):
+    return dict(request.headers)
