@@ -80,3 +80,76 @@ async def update_lead_status(
         await db.commit()
         result = await db.execute(select(Lead).where(Lead.id == lead_id))
         return _lead_to_dict(result.scalar_one())
+
+
+# ── Intake endpoint for member portal ────────────────────────────────────────
+from pydantic import BaseModel as _BaseModel
+from typing import Optional as _Optional
+
+class LeadIntakeRequest(_BaseModel):
+    vertical:      str
+    project_type:  str
+    first_name:    _Optional[str] = None
+    last_name:     _Optional[str] = None
+    email:         str
+    phone:         _Optional[str] = None
+    address_line1: _Optional[str] = None
+    project_scope: _Optional[str] = None
+
+@router.post("/intake")
+async def lead_intake(payload: LeadIntakeRequest):
+    """
+    Public intake form submission from member portal.
+    Creates a lead record and triggers magic link email.
+    """
+    from app.models.lead import Lead
+    from app.routers.api.magic_link import send_magic_link_email, create_magic_token
+    from app.models.user import User, UserRole, UserStatus
+    from app.models.user_tenant import UserTenant
+    from app.models.tenant import Tenant
+    from app.core.security import hash_password
+    from uuid import uuid4
+    from sqlalchemy import select
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        # Get member tenant
+        tenant_result = await db.execute(
+            select(Tenant).where(Tenant.domain == "member.nexabuilder.com")
+        )
+        tenant = tenant_result.scalar_one_or_none()
+
+        # Find or create user for this email
+        user_result = await db.execute(select(User).where(User.email == payload.email))
+        user = user_result.scalar_one_or_none()
+
+        if not user:
+            user = User(
+                id=uuid4(),
+                email=payload.email,
+                password_hash=hash_password(str(uuid4())),  # random unusable password
+                role=UserRole.lead,
+                status=UserStatus.active,
+            )
+            db.add(user)
+            await db.flush()
+            if tenant:
+                db.add(UserTenant(id=uuid4(), user_id=user.id, tenant_id=tenant.id))
+
+        # Create lead record
+        lead = Lead(
+            email=payload.email,
+            phone=payload.phone,
+            first_name=payload.first_name,
+            last_name=payload.last_name,
+            vertical=payload.vertical,
+            address_line1=payload.address_line1,
+        )
+        db.add(lead)
+        await db.commit()
+
+        # Send magic link
+        token = create_magic_token(str(user.id), user.email)
+        await send_magic_link_email(user.email, token)
+
+    return {"message": "Submission received. Check your email for a secure link."}
