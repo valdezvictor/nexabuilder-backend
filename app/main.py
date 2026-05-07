@@ -19,6 +19,8 @@ from app.routers.api.routing import router as routing_router
 from app.routers.metrics import router as metrics_router
 from app.routers import auth
 from app.routers.api.magic_link import router as magic_link_router
+from app.routers.api.lead_intake import router as lead_intake_router
+from app.routers.api.magic_link import router as magic_link_router
 from app.routers.admin_metrics import router as admin_metrics_router
 from app.routers.admin_metrics import dashboard_router
 from app.db import test_connection
@@ -55,6 +57,8 @@ if os.path.isdir("app/static"):
 
 # ── Routers ──────────────────────────────────────────────────────────────────
 application.include_router(auth.router, prefix="/api")
+application.include_router(magic_link_router, prefix="/api")
+application.include_router(lead_intake_router)
 application.include_router(enrichment_router)
 application.include_router(call_center_router, prefix="/call-center")
 application.include_router(trades_router)
