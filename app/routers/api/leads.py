@@ -34,14 +34,11 @@ async def list_leads(
     offset: int = Query(0, ge=0),
     identity: dict = Depends(get_current_user),
 ):
-    user = identity["user"]
-    role = identity["role"]
+    # TODO: scope by contractor integer ID once user-contractor mapping exists
+    # For now all authenticated users see all leads
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
-        stmt = select(Lead)
-        if role == "contractor":
-            stmt = stmt.where(Lead.contractor_id == user.id)
-        stmt = stmt.order_by(Lead.created_at.desc()).limit(limit).offset(offset)
+        stmt = select(Lead).order_by(Lead.created_at.desc()).limit(limit).offset(offset)
         result = await db.execute(stmt)
         leads = result.scalars().all()
         return [_lead_to_dict(l) for l in leads]
@@ -52,14 +49,9 @@ async def get_lead(
     lead_id: int,
     identity: dict = Depends(get_current_user),
 ):
-    user = identity["user"]
-    role = identity["role"]
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
-        stmt = select(Lead).where(Lead.id == lead_id)
-        if role == "contractor":
-            stmt = stmt.where(Lead.contractor_id == user.id)
-        result = await db.execute(stmt)
+        result = await db.execute(select(Lead).where(Lead.id == lead_id))
         lead = result.scalar_one_or_none()
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
@@ -76,19 +68,14 @@ async def update_lead_status(
     payload: LeadStatusUpdate,
     identity: dict = Depends(get_current_user),
 ):
-    user = identity["user"]
-    role = identity["role"]
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
-        stmt = select(Lead).where(Lead.id == lead_id)
-        if role == "contractor":
-            stmt = stmt.where(Lead.contractor_id == user.id)
-        result = await db.execute(stmt)
+        result = await db.execute(select(Lead).where(Lead.id == lead_id))
         lead = result.scalar_one_or_none()
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
         await db.execute(
-            update(Lead).where(Lead.id == lead_id).values(routing_tier=int(payload.status))
+            update(Lead).where(Lead.id == lead_id).values(routing_tier=payload.status)
         )
         await db.commit()
         result = await db.execute(select(Lead).where(Lead.id == lead_id))
