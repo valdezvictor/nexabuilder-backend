@@ -13,6 +13,7 @@ from app.models.user_tenant import UserTenant
 from app.models.tenant import Tenant
 from app.core.security import hash_password
 from app.services.sms import send_magic_link_sms
+from app.services.ai_intake import assess_lead
 from jose import jwt
 from app.core.config import settings
 
@@ -99,6 +100,14 @@ async def submit_lead(payload: LeadIntakeRequest):
         await db.commit()
         await db.refresh(lead)
 
+        # Run AI intake assessment
+        ai_assessment = assess_lead(
+            vertical=payload.vertical,
+            project_type=payload.project_type,
+            description=payload.description,
+            postal_code=payload.postal_code,
+        )
+
         # For phone-only leads: generate direct access URL with 30-day token
         token_url = None
         if payload.phone and not payload.email:
@@ -119,4 +128,5 @@ async def submit_lead(payload: LeadIntakeRequest):
             "phone":    lead.phone,
             "source":   payload.source,
             "token_url": token_url,
+            "ai_assessment": ai_assessment,
         }
