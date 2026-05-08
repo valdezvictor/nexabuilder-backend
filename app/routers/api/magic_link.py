@@ -75,8 +75,18 @@ async def verify_magic_link(token: str = Query(...)):
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or expired magic link")
 
-    if payload.get("type") != "magic_link":
+    token_type = payload.get("type")
+    # Accept magic_link tokens AND direct lead access tokens (phone-only leads)
+    if token_type not in ("magic_link", None):
         raise HTTPException(status_code=400, detail="Invalid token type")
+    
+    # For direct access tokens (phone-only leads), issue token directly
+    if token_type is None and payload.get("role") == "lead":
+        return {
+            "access_token":  token,  # reuse the direct token
+            "refresh_token": token,
+            "token_type":    "bearer",
+        }
 
     user_id = payload.get("sub")
     if not user_id:
