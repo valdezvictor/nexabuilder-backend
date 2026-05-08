@@ -26,10 +26,54 @@ MAGIC_LINK_EXP_MINUTES = 15
 
 
 async def _send_magic_link_email(email: str, token: str):
-    """Send magic link email — stub for now, wire SES/SendGrid in Phase 2"""
+    """Send magic link email via AWS SES"""
+    import boto3
+    from botocore.exceptions import ClientError
+
     magic_url = f"https://member.nexabuilder.com/auth/verify?token={token}"
     print(f"[MAGIC LINK] To: {email} | URL: {magic_url}")
-    # TODO: integrate AWS SES or SendGrid
+
+    try:
+        ses = boto3.client("ses", region_name="us-east-1")
+        ses.send_email(
+            Source="NexaBuilder <noreply@nexabuilder.com>",
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": "Your NexaBuilder access link", "Charset": "UTF-8"},
+                "Body": {
+                    "Html": {
+                        "Data": f"""
+                        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+                          <h2 style="color: #2563eb;">Access Your Project</h2>
+                          <p>Click the button below to access your NexaBuilder dashboard.</p>
+                          <a href="{magic_url}"
+                             style="display: inline-block; padding: 12px 24px; background: #2563eb;
+                                    color: white; text-decoration: none; border-radius: 6px;
+                                    font-size: 16px; margin: 16px 0;">
+                            Access My Project
+                          </a>
+                          <p style="color: #666; font-size: 14px;">
+                            This link expires in 15 minutes. If you didn't request this, ignore this email.
+                          </p>
+                          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+                          <p style="color: #999; font-size: 12px;">
+                            NexaBuilder — Connecting you with the right service provider.
+                          </p>
+                        </div>
+                        """,
+                        "Charset": "UTF-8"
+                    },
+                    "Text": {
+                        "Data": f"Access your NexaBuilder project: {magic_url}",
+                        "Charset": "UTF-8"
+                    }
+                }
+            }
+        )
+        print(f"[SES] Magic link email sent to {email}")
+    except ClientError as e:
+        print(f"[SES ERROR] {e.response['Error']['Message']} - falling back to console log")
+        print(f"[MAGIC LINK FALLBACK] {magic_url}")
 
 
 def _create_magic_token(user_id: str, email: str) -> str:
