@@ -12,6 +12,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.user_tenant import UserTenant
 from app.models.tenant import Tenant
 from app.core.security import hash_password
+from app.services.sms import send_magic_link_sms
 from jose import jwt
 from app.core.config import settings
 
@@ -103,6 +104,13 @@ async def submit_lead(payload: LeadIntakeRequest):
         if payload.phone and not payload.email:
             direct_token = _create_access_token(str(user.id), tenant_id)
             token_url = f"https://member.nexabuilder.com/auth/verify?token={direct_token}"
+
+        # Auto-send SMS for phone-only leads
+        if token_url and payload.phone:
+            phone = payload.phone.replace("-","").replace(" ","").replace("(","").replace(")","")
+            if not phone.startswith("+"):
+                phone = "+1" + phone
+            send_magic_link_sms(phone, token_url)
 
         return {
             "id":       lead.id,
