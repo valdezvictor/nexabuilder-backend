@@ -164,7 +164,20 @@ Use current market pricing. For pools include: excavation, shotcrete/gunite, plu
         )
         text = msg.content[0].text.strip()
         if text.startswith("```"):
-            text = "\n".join(text.split("\n")[1:-1])
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            text = text[start:end]
+        import re
+        text = re.sub(r',\s*([}\]])', r'\1', text)
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            text = text[start:end]
+        import re as _re
+        text = _re.sub(r",\s*([}\]])", r"", text)
         estimate = json.loads(text)
         estimate["bls_wages_used"] = wages
         estimate["estimated"] = True

@@ -64,6 +64,12 @@ drone_recommended=true for pools, additions, new construction
         text = msg.content[0].text.strip()
         if text.startswith("```"):
             text = "\n".join(text.split("\n")[1:-1])
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            text = text[start:end]
+        import re as _re
+        text = _re.sub(r",\s*([}\]])", r"", text)
         result = json.loads(text)
         result["ai_assessed"] = True
         return result
