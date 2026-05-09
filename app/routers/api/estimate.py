@@ -1,6 +1,4 @@
 # app/routers/api/estimate.py
-# On-demand estimate generation for any lead
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from app.core.auth import get_current_user
@@ -17,10 +15,7 @@ async def create_estimate(
     lead_id: int,
     identity: dict = Depends(get_current_user),
 ):
-    """
-    Generate a detailed cost estimate for a lead.
-    Runs AI intake assessment + BLS-powered line-item estimator.
-    """
+    """Generate detailed cost estimate for a lead using stored AI assessment."""
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         result = await db.execute(select(Lead).where(Lead.id == lead_id))
@@ -28,28 +23,35 @@ async def create_estimate(
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
 
-    # Run AI assessment first
-    assessment = assess_lead(
-        vertical=lead.vertical or "home_services",
-        project_type=None,
-        description=None,
-        postal_code=lead.postal_code,
-    )
+        # Use stored AI assessment or run fresh one
+        assessment = lead.ai_assessment
+        if not assessment or not assessment.get('ai_assessed'):
+            assessment = assess_lead(
+                vertical=lead.vertical or "home_services",
+                project_type=lead.project_type,
+                description=lead.project_description,
+                postal_code=lead.postal_code,
+            )
 
-    # Generate line-item estimate
-    estimate = generate_estimate(
-        vertical=lead.vertical or "home_services",
-        project_type="General",
-        description=None,
-        postal_code=lead.postal_code,
-        ai_assessment=assessment,
-    )
+        # Generate line-item estimate
+        estimate = generate_estimate(
+            vertical=lead.vertical or "home_services",
+            project_type=lead.project_type or "General",
+            description=lead.project_description,
+            postal_code=lead.postal_code,
+            ai_assessment=assessment,
+        )
 
-    return {
-        "lead_id": lead_id,
-        "lead_name": f"{lead.first_name or ''} {lead.last_name or ''}".strip(),
-        "vertical": lead.vertical,
-        "postal_code": lead.postal_code,
-        "ai_assessment": assessment,
-        "estimate": estimate,
-    }
+        # Save estimate to lead record
+        lead.estimate = estimate
+        await db.commit()
+
+        return {
+            "lead_id": lead_id,
+            "lead_name": f"{lead.first_name or ''} {lead.last_name or ''}".strip(),
+            "vertical": lead.vertical,
+            "project_type": lead.project_type,
+            "postal_code": lead.postal_code,
+            "ai_assessment": assessment,
+            "estimate": estimate,
+        }

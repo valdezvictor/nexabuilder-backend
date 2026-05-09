@@ -36,6 +36,13 @@ class Lead(Base):
     ai_score = mapped_column(Float, nullable=True)
     ai_explanations = mapped_column(JSON, nullable=True)
 
+    # AI intake assessment (Phase 2)
+    ai_assessment = mapped_column(JSON, nullable=True)   # Full Claude assessment
+    estimate = mapped_column(JSON, nullable=True)         # Line-item cost estimate
+    project_type = mapped_column(String(100), nullable=True)
+    project_description = mapped_column(String(2000), nullable=True)
+    source = mapped_column(String(50), nullable=True)    # web_form, tv_ad, radio_ad, etc
+
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     contractor = relationship("Contractor", back_populates="leads")

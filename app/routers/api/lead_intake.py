@@ -59,6 +59,9 @@ async def submit_lead(payload: LeadIntakeRequest):
         # Create the lead record
         lead = Lead(
             vertical=payload.vertical,
+            project_type=payload.project_type,
+            project_description=payload.description,
+            source=payload.source,
             first_name=payload.first_name,
             last_name=payload.last_name,
             email=payload.email,
@@ -113,6 +116,11 @@ async def submit_lead(payload: LeadIntakeRequest):
         if payload.phone and not payload.email:
             direct_token = _create_access_token(str(user.id), tenant_id)
             token_url = f"https://member.nexabuilder.com/auth/verify?token={direct_token}"
+
+        # Save AI assessment to lead record
+        if lead.id and ai_assessment.get('ai_assessed'):
+            lead.ai_assessment = ai_assessment
+            await db.commit()
 
         # Auto-send SMS for phone-only leads
         if token_url and payload.phone:
