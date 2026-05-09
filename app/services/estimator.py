@@ -22,26 +22,13 @@ def get_bls_regional_wages() -> dict:
 
 def _parse_json_robust(text: str) -> dict:
     """Extract and parse JSON from LLM response, handling common issues."""
-    # Strip markdown code blocks
-    if "```" in text:
-        lines = text.split("\n")
-        inner = []
-        in_block = False
-        for line in lines:
-            if line.strip().startswith("```"):
-                in_block = not in_block
-                continue
-            if in_block:
-                inner.append(line)
-        text = "\n".join(inner)
-
-    # Extract JSON object
+    # Extract JSON object directly (works with or without markdown)
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:
         text = text[start:end]
 
-    # Fix trailing commas
+    # Fix trailing commas before } or ]
     text = re.sub(r",\s*([}\]])", r"\1", text)
 
     return json.loads(text)
@@ -114,7 +101,7 @@ Include realistic items for this specific project type. For pools include excava
     try:
         msg = client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=3000,
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}]
         )
         text = msg.content[0].text.strip()
@@ -126,7 +113,7 @@ Include realistic items for this specific project type. For pools include excava
             # Self-healing: ask Claude to fix the JSON
             fix_msg = client.messages.create(
                 model="claude-sonnet-4-5",
-                max_tokens=3000,
+                max_tokens=4096,
                 messages=[
                     {"role": "user", "content": prompt},
                     {"role": "assistant", "content": text},
