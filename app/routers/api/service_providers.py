@@ -107,7 +107,7 @@ async def create_provider(
         # Send welcome magic link email via SES
         magic_token = create_access_token(
             data={"sub": str(user.id), "email": user.email, "role": "partner"},
-            expires_delta=timedelta(hours=72)
+            expires_minutes=72*60
         )
         portal_url = f"https://service.nexabuilder.com/login?token={magic_token}"
         provider_name = f"{payload.first_name or ''} {payload.last_name or ''}".strip() or payload.email
@@ -191,7 +191,7 @@ async def request_portal_access(email: str):
             if user:
                 magic_token = create_access_token(
                     data={"sub": str(user.id), "email": user.email, "role": "partner"},
-                    expires_delta=timedelta(hours=24)
+                    expires_minutes=24*60
                 )
                 portal_url = f"https://service.nexabuilder.com/login?token={magic_token}"
                 provider_name = f"{provider.first_name or ''} {provider.last_name or ''}".strip() or email
