@@ -78,7 +78,7 @@ application.include_router(contractors_api_router)
 application.include_router(leads_router)
 application.include_router(routing_router)
 application.include_router(metrics_router)
-application.include_router(admin_metrics_router)
+application.include_router(admin_metrics_router, prefix="/api")
 application.include_router(dashboard_router)
 
 # ── Prometheus instrumentation ───────────────────────────────────────────────
