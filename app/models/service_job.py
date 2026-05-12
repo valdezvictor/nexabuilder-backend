@@ -33,7 +33,7 @@ class ServiceJob(Base):
 
     # Job details
     service_type = Column(String(50), nullable=False)  # notary, loan_processor, etc.
-    status = Column(Enum(JobStatus), default=JobStatus.offered)
+    status = Column(String(30), default='offered')
     description = Column(Text, nullable=True)          # What needs to be done
 
     # Payment
