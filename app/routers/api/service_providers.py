@@ -109,7 +109,7 @@ async def create_provider(
             data={"sub": str(user.id), "email": user.email, "role": "partner"},
             expires_minutes=72*60
         )
-        portal_url = f"https://service.nexabuilder.com/login?token={magic_token}"
+        portal_url = f"https://service.nexabuilder.com/auth/verify?token={magic_token}"
         provider_name = f"{payload.first_name or ''} {payload.last_name or ''}".strip() or payload.email
         service_label = payload.service_type.replace("_", " ").title()
 
@@ -193,7 +193,7 @@ async def request_portal_access(email: str):
                     data={"sub": str(user.id), "email": user.email, "role": "partner"},
                     expires_minutes=24*60
                 )
-                portal_url = f"https://service.nexabuilder.com/login?token={magic_token}"
+                portal_url = f"https://service.nexabuilder.com/auth/verify?token={magic_token}"
                 provider_name = f"{provider.first_name or ''} {provider.last_name or ''}".strip() or email
 
                 try:
