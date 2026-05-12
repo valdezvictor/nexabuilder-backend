@@ -35,8 +35,8 @@ class ServiceProvider(Base):
     company_name = Column(String(200), nullable=True)
 
     # Service type and coverage
-    service_type = Column(Enum(ServiceType), nullable=False)
-    status = Column(Enum(ServiceProviderStatus), default=ServiceProviderStatus.active)
+    service_type = Column(String(50), nullable=False)
+    status = Column(String(20), default='active')
 
     # Geographic coverage
     postal_codes = Column(JSONB, nullable=True)   # List of zip codes served

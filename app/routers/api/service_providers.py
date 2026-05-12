@@ -60,7 +60,7 @@ async def create_provider(
             first_name=payload.first_name,
             last_name=payload.last_name,
             company_name=payload.company_name,
-            service_type=ServiceType(payload.service_type),
+            service_type=payload.service_type,
             base_postal_code=payload.base_postal_code,
             base_city=payload.base_city,
             base_state=payload.base_state,
@@ -87,7 +87,7 @@ async def list_providers(
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         stmt = select(ServiceProvider).where(
-            ServiceProvider.status == ServiceProviderStatus.active
+            ServiceProvider.status == 'active'
         )
         if service_type:
             stmt = stmt.where(ServiceProvider.service_type == ServiceType(service_type))
@@ -136,8 +136,8 @@ async def match_and_offer(
         # Find available providers of this type
         stmt = select(ServiceProvider).where(
             and_(
-                ServiceProvider.service_type == ServiceType(payload.service_type),
-                ServiceProvider.status == ServiceProviderStatus.active,
+                ServiceProvider.service_type == payload.service_type,
+                ServiceProvider.status == 'active',
                 ServiceProvider.available == True,
             )
         ).order_by(ServiceProvider.jobs_completed.desc())  # Prefer experienced providers
@@ -283,10 +283,10 @@ async def accept_job(job_id: UUID, token: str = Query(...)):
         job = result.scalar_one_or_none()
         if not job:
             raise HTTPException(status_code=404, detail="Job not found or invalid token")
-        if job.status not in (JobStatus.offered,):
+        if job.status not in ('offered',):
             return {"message": f"This job has already been {job.status.value}"}
 
-        job.status = JobStatus.accepted
+        job.status = 'accepted'
         job.offer_accepted_at = datetime.utcnow()
 
         # Cancel other offers for same lead + service type
@@ -296,7 +296,7 @@ async def accept_job(job_id: UUID, token: str = Query(...)):
                     ServiceJob.lead_id == job.lead_id,
                     ServiceJob.service_type == job.service_type,
                     ServiceJob.id != job.id,
-                    ServiceJob.status == JobStatus.offered,
+                    ServiceJob.status == 'offered',
                 )
             )
         )
@@ -327,7 +327,7 @@ async def decline_job(job_id: UUID, token: str = Query(...)):
         if not job:
             raise HTTPException(status_code=404, detail="Invalid link")
 
-        job.status = JobStatus.declined
+        job.status = 'declined'
         job.offer_declined_at = datetime.utcnow()
         await db.commit()
 
