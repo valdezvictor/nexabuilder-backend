@@ -266,6 +266,45 @@ async def match_and_offer(
         }
 
 
+
+@router.get("/my-jobs")
+async def get_my_jobs(
+    identity: dict = Depends(get_current_user),
+):
+    """Service provider views their assigned jobs."""
+    user = identity["user"]
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        # Find provider by user email
+        provider_result = await db.execute(
+            select(ServiceProvider).where(ServiceProvider.email == user.email)
+        )
+        provider = provider_result.scalar_one_or_none()
+
+        if not provider:
+            return []
+
+        jobs_result = await db.execute(
+            select(ServiceJob).where(
+                ServiceJob.provider_id == provider.id
+            ).order_by(ServiceJob.created_at.desc())
+        )
+        jobs = jobs_result.scalars().all()
+
+        return [{
+            "id": str(j.id),
+            "lead_id": j.lead_id,
+            "service_type": j.service_type,
+            "status": j.status,
+            "description": j.description,
+            "payment_amount": j.payment_amount,
+            "payment_model": j.payment_model,
+            "offer_sent_at": j.offer_sent_at.isoformat() if j.offer_sent_at else None,
+            "offer_accepted_at": j.offer_accepted_at.isoformat() if j.offer_accepted_at else None,
+            "documents_uploaded": j.documents_uploaded,
+        } for j in jobs]
+
+
 # Job accept/decline endpoints (no auth - accessed via SMS/email link)
 job_router = APIRouter(prefix="/api/service-jobs", tags=["Service Jobs"])
 
