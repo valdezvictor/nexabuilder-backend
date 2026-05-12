@@ -90,7 +90,7 @@ async def list_providers(
             ServiceProvider.status == 'active'
         )
         if service_type:
-            stmt = stmt.where(ServiceProvider.service_type == ServiceType(service_type))
+            stmt = stmt.where(ServiceProvider.service_type == service_type)
         if available is not None:
             stmt = stmt.where(ServiceProvider.available == available)
 
@@ -170,7 +170,7 @@ async def match_and_offer(
                 lead_id=payload.lead_id,
                 provider_id=provider.id,
                 service_type=payload.service_type,
-                status=JobStatus.offered,
+                status='offered',
                 description=payload.description,
                 payment_model=payload.payment_model,
                 flat_rate=payload.flat_rate,
@@ -301,7 +301,7 @@ async def accept_job(job_id: UUID, token: str = Query(...)):
             )
         )
         for other in other_offers.scalars().all():
-            other.status = JobStatus.cancelled
+            other.status = 'cancelled'
 
         await db.commit()
 
