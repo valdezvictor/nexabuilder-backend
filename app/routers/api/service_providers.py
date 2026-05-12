@@ -14,6 +14,12 @@ from app.db import get_sessionmaker
 from app.models.service_provider import ServiceProvider, ServiceType, ServiceProviderStatus
 from app.models.service_job import ServiceJob, JobStatus
 from app.models.lead import Lead
+from app.models.user import User, UserRole
+from app.models.user_tenant import UserTenant
+from app.models.tenant import Tenant
+from app.core.security import create_access_token
+import secrets
+from datetime import datetime, timedelta
 from app.services.sms import send_sms
 
 router = APIRouter(prefix="/api/service-providers", tags=["Service Providers"])
@@ -71,9 +77,153 @@ async def create_provider(
             license_number=payload.license_number,
         )
         db.add(provider)
+        await db.flush()
+
+        # Create User account for portal login
+        existing_user = await db.execute(select(User).where(User.email == payload.email))
+        user = existing_user.scalar_one_or_none()
+        if not user:
+            from app.core.security import hash_password
+            user = User(
+                email=payload.email,
+                password_hash=hash_password(secrets.token_urlsafe(16)),
+                role=UserRole.partner,
+            )
+            db.add(user)
+            await db.flush()
+
+            # Link user to service portal tenant
+            tenant_result = await db.execute(
+                select(Tenant).where(Tenant.domain == "service.nexabuilder.com")
+            )
+            tenant = tenant_result.scalar_one_or_none()
+            if tenant:
+                ut = UserTenant(user_id=user.id, tenant_id=tenant.id)
+                db.add(ut)
+
         await db.commit()
         await db.refresh(provider)
-        return {"id": str(provider.id), "email": provider.email, "service_type": payload.service_type}
+
+        # Send welcome magic link email via SES
+        magic_token = create_access_token(
+            data={"sub": str(user.id), "email": user.email, "role": "partner"},
+            expires_delta=timedelta(hours=72)
+        )
+        portal_url = f"https://service.nexabuilder.com/login?token={magic_token}"
+        provider_name = f"{payload.first_name or ''} {payload.last_name or ''}".strip() or payload.email
+        service_label = payload.service_type.replace("_", " ").title()
+
+        try:
+            import boto3
+            ses = boto3.client("ses", region_name="us-east-1")
+            ses.send_email(
+                Source="NexaBuilder <noreply@nexabuilder.com>",
+                Destination={"ToAddresses": [payload.email]},
+                Message={
+                    "Subject": {"Data": "Welcome to NexaBuilder — Access Your Service Portal"},
+                    "Body": {
+                        "Html": {"Data": f"""
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                          <div style="background: #1e3a5f; padding: 20px; text-align: center;">
+                            <h1 style="color: white; margin: 0;">NexaBuilder</h1>
+                            <p style="color: #93c5fd; margin: 4px 0;">Service Provider Portal</p>
+                          </div>
+                          <div style="padding: 24px;">
+                            <h2>Welcome, {provider_name}!</h2>
+                            <p>Your <strong>{service_label}</strong> account has been created on NexaBuilder.</p>
+                            <p>Click the button below to access your portal. You will receive job offers via SMS and email — each offer includes a direct link to accept and view the job.</p>
+                            <div style="text-align: center; margin: 32px 0;">
+                              <a href="{portal_url}"
+                                style="background: #2563eb; color: white; padding: 14px 32px;
+                                       text-decoration: none; border-radius: 8px; font-size: 16px;
+                                       display: inline-block;">
+                                Access My Portal
+                              </a>
+                            </div>
+                            <p style="color: #666; font-size: 13px;">This link expires in 72 hours. You can always request a new link from the login page.</p>
+                            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+                            <p style="color: #999; font-size: 12px;">
+                              NexaBuilder &mdash; Connecting service providers with clients.<br>
+                              Questions? <a href="mailto:support@nexabuilder.com">support@nexabuilder.com</a>
+                            </p>
+                          </div>
+                        </div>""", "Charset": "UTF-8"},
+                        "Text": {"Data": f"Welcome to NexaBuilder, {provider_name}! Access your portal: {portal_url}", "Charset": "UTF-8"}
+                    }
+                }
+            )
+            print(f"[SERVICE PROVIDER] Welcome email sent to {payload.email}")
+            email_sent = True
+        except Exception as e:
+            print(f"[SERVICE PROVIDER EMAIL ERROR] {e}")
+            email_sent = False
+
+        return {
+            "id": str(provider.id),
+            "email": provider.email,
+            "service_type": payload.service_type,
+            "user_created": True,
+            "welcome_email_sent": email_sent,
+            "portal_url": portal_url,
+            "message": f"Provider created and welcome email sent to {payload.email}"
+        }
+
+
+
+@router.post("/request-access")
+async def request_portal_access(email: str):
+    """
+    Service provider requests a new magic link to access their portal.
+    No auth required — anyone can request, but only registered providers get the email.
+    """
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        provider_result = await db.execute(
+            select(ServiceProvider).where(ServiceProvider.email == email)
+        )
+        provider = provider_result.scalar_one_or_none()
+
+        if provider:
+            user_result = await db.execute(
+                select(User).where(User.email == email)
+            )
+            user = user_result.scalar_one_or_none()
+            if user:
+                magic_token = create_access_token(
+                    data={"sub": str(user.id), "email": user.email, "role": "partner"},
+                    expires_delta=timedelta(hours=24)
+                )
+                portal_url = f"https://service.nexabuilder.com/login?token={magic_token}"
+                provider_name = f"{provider.first_name or ''} {provider.last_name or ''}".strip() or email
+
+                try:
+                    import boto3
+                    ses = boto3.client("ses", region_name="us-east-1")
+                    ses.send_email(
+                        Source="NexaBuilder <noreply@nexabuilder.com>",
+                        Destination={"ToAddresses": [email]},
+                        Message={
+                            "Subject": {"Data": "Your NexaBuilder Portal Access Link"},
+                            "Body": {
+                                "Html": {"Data": f'''<div style="font-family: Arial; max-width: 500px; margin: 0 auto;">
+                                  <h2 style="color: #1e3a5f;">Portal Access Link</h2>
+                                  <p>Hi {provider_name}, here is your access link (valid 24 hours):</p>
+                                  <div style="margin: 24px 0; text-align: center;">
+                                    <a href="{portal_url}" style="background:#2563eb;color:white;padding:12px 28px;text-decoration:none;border-radius:6px;font-size:15px;">
+                                      Access My Portal
+                                    </a>
+                                  </div>
+                                  <p style="color:#999;font-size:12px;">If you did not request this, ignore this email.</p>
+                                </div>''', "Charset": "UTF-8"},
+                                "Text": {"Data": f"Access your portal: {portal_url}", "Charset": "UTF-8"}
+                            }
+                        }
+                    )
+                    print(f"[MAGIC LINK] Sent to {email}")
+                except Exception as e:
+                    print(f"[MAGIC LINK ERROR] {e}")
+
+    return {"message": "If an account exists for that email, an access link has been sent."}
 
 
 @router.get("")
