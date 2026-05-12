@@ -105,8 +105,15 @@ async def create_provider(
         await db.refresh(provider)
 
         # Send welcome magic link email via SES
+        # Get service portal tenant ID
+        svc_tenant_result = await db.execute(
+            select(Tenant).where(Tenant.domain == "service.nexabuilder.com")
+        )
+        svc_tenant = svc_tenant_result.scalar_one_or_none()
+        tenant_id_str = str(svc_tenant.id) if svc_tenant else ""
+
         magic_token = create_access_token(
-            data={"sub": str(user.id), "email": user.email, "role": "partner"},
+            data={"sub": str(user.id), "email": user.email, "role": "partner", "tenant": tenant_id_str},
             expires_minutes=72*60
         )
         portal_url = f"https://service.nexabuilder.com/auth/verify?token={magic_token}"
@@ -189,8 +196,15 @@ async def request_portal_access(email: str):
             )
             user = user_result.scalar_one_or_none()
             if user:
+                # Get service portal tenant ID
+                svc_tenant_res = await db.execute(
+                    select(Tenant).where(Tenant.domain == "service.nexabuilder.com")
+                )
+                svc_tenant = svc_tenant_res.scalar_one_or_none()
+                t_id = str(svc_tenant.id) if svc_tenant else ""
+
                 magic_token = create_access_token(
-                    data={"sub": str(user.id), "email": user.email, "role": "partner"},
+                    data={"sub": str(user.id), "email": user.email, "role": "partner", "tenant": t_id},
                     expires_minutes=24*60
                 )
                 portal_url = f"https://service.nexabuilder.com/auth/verify?token={magic_token}"
