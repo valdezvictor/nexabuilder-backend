@@ -48,4 +48,11 @@ class Lead(Base):
     contractor = relationship("Contractor", back_populates="leads")
     trade = relationship("Trade", back_populates="leads")
     zip = relationship("ZipCode", back_populates="leads")
-    routing_tier = Column(Integer, default=1) # Ensure this matches your DB type
+    routing_tier = Column(Integer, default=1)
+
+    # Lead status progression
+    lead_status = Column(String(30), default='submitted')  # submitted|review|matched|site_visit|quote|approved|complete
+    assigned_contractor_id = Column(String(100), nullable=True)  # Internal or CSLB license_no
+    assigned_at = mapped_column(nullable=True)
+    status_updated_at = mapped_column(nullable=True)
+    internal_notes = Column(String(2000), nullable=True)

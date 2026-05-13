@@ -188,4 +188,44 @@ async def get_lead(
             "ai_assessment": getattr(lead, "ai_assessment", None),
             "estimate": getattr(lead, "estimate", None),
             "created_at": lead.created_at.isoformat() if lead.created_at else None,
+            "lead_status": getattr(lead, "lead_status", "submitted") or "submitted",
+            "assigned_contractor_id": getattr(lead, "assigned_contractor_id", None),
+            "internal_notes": getattr(lead, "internal_notes", None),
         }
+
+
+LEAD_STATUSES = ['submitted','review','matched','site_visit','quote','approved','complete','cancelled']
+STATUS_LABELS = {'submitted':'Project Submitted','review':'Under Review','matched':'Matched with Provider',
+    'site_visit':'Site Visit Scheduled','quote':'Quote in Progress','approved':'Quote Approved',
+    'complete':'Project Complete','cancelled':'Cancelled'}
+
+
+@router.patch("/{lead_id}/status")
+async def update_lead_status(
+    lead_id: int, status: str, notes: str = None,
+    contractor_id: str = None, identity: dict = Depends(get_current_user),
+):
+    from fastapi import HTTPException
+    from datetime import datetime
+    from sqlalchemy import select as sa_select
+    if status not in LEAD_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        result = await db.execute(sa_select(Lead).where(Lead.id == lead_id))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        old_status = getattr(lead, "lead_status", "submitted") or "submitted"
+        lead.lead_status = status
+        lead.status_updated_at = datetime.utcnow()
+        if notes:
+            ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+            existing = getattr(lead, "internal_notes", "") or ""
+            lead.internal_notes = "[" + ts + "] " + notes + "\n" + existing
+        if contractor_id:
+            lead.assigned_contractor_id = contractor_id
+            lead.assigned_at = datetime.utcnow()
+        await db.commit()
+        return {"lead_id": lead_id, "old_status": old_status, "new_status": status,
+                "status_label": STATUS_LABELS.get(status, status)}
