@@ -13,6 +13,7 @@ from app.models.user_tenant import UserTenant
 from app.models.tenant import Tenant
 from app.core.security import hash_password
 from app.services.sms import send_magic_link_sms
+from app.routers.api.contractor_matching import should_route_internal, INTERNAL_CONTRACTOR
 from app.services.ai_intake import assess_lead
 from jose import jwt
 from app.core.config import settings
@@ -121,6 +122,22 @@ async def submit_lead(payload: LeadIntakeRequest):
         if lead.id and ai_assessment.get('ai_assessed'):
             lead.ai_assessment = ai_assessment
             await db.commit()
+
+        # Auto internal routing check
+        if ai_assessment.get('ai_assessed'):
+            if should_route_internal(lead, ai_assessment):
+                from app.services.sms import send_sms
+                lead_name = f"{payload.first_name or ''} {payload.last_name or ''}".strip() or "New Lead"
+                score = ai_assessment.get('complexity_score', 'N/A')
+                cost = ai_assessment.get('estimated_cost_range', 'TBD')
+                sms_msg = (
+                    f"NexaBuilder INTERNAL LEAD: {lead_name} | "
+                    f"{payload.project_type or payload.vertical} | "
+                    f"ZIP {payload.postal_code} | Score {score}/10 | {cost} | "
+                    f"Review: https://admin.nexabuilder.com/leads/{lead.id}"
+                )
+                send_sms(INTERNAL_CONTRACTOR['phone'], sms_msg)
+                print(f"[INTERNAL ROUTE] Lead #{lead.id} routed to Victor's crew")
 
         # Auto-send SMS for phone-only leads
         if token_url and payload.phone:
