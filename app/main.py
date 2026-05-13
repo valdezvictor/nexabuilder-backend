@@ -8,7 +8,7 @@ from starlette.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 
 # ── Only import routers that actually exist on EC2 ───────────────────────────
-from app.api.enrichment import router as enrichment_router
+from app.routers.api.enrichment import router as enrichment_router
 from app.routers.call_center.leads import router as call_center_router
 from app.routers.api.trades import router as trades_router
 from app.routers.api.zip_lookup import router as zip_router
@@ -29,7 +29,6 @@ from app.routers.api.magic_link import router as magic_link_router
 from app.routers.api.estimate import router as estimate_router
 from app.routers.api.service_providers import router as service_provider_router, job_router as service_job_router
 from app.routers.api.documents import router as documents_router
-from app.routers.api.contractor_matching import router as contractor_matching_router
 from app.routers.api.contractor_match import router as contractor_match_router
 from app.routers.admin_metrics import router as admin_metrics_router
 from app.routers.admin_metrics import dashboard_router
