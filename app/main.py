@@ -22,11 +22,13 @@ from app.routers.api.magic_link import router as magic_link_router
 from app.routers.api.estimate import router as estimate_router
 from app.routers.api.service_providers import router as service_provider_router, job_router as service_job_router
 from app.routers.api.documents import router as documents_router
+from app.routers.api.contractor_match import router as contractor_match_router
 from app.routers.api.lead_intake import router as lead_intake_router
 from app.routers.api.magic_link import router as magic_link_router
 from app.routers.api.estimate import router as estimate_router
 from app.routers.api.service_providers import router as service_provider_router, job_router as service_job_router
 from app.routers.api.documents import router as documents_router
+from app.routers.api.contractor_match import router as contractor_match_router
 from app.routers.admin_metrics import router as admin_metrics_router
 from app.routers.admin_metrics import dashboard_router
 from app.db import test_connection
@@ -69,6 +71,7 @@ application.include_router(estimate_router)
 application.include_router(service_provider_router)
 application.include_router(service_job_router)
 application.include_router(documents_router)
+application.include_router(contractor_match_router)
 application.include_router(lead_intake_router)
 application.include_router(enrichment_router)
 application.include_router(call_center_router, prefix="/call-center")
