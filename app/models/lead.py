@@ -53,6 +53,6 @@ class Lead(Base):
     # Lead status progression
     lead_status = Column(String(30), default='submitted')  # submitted|review|matched|site_visit|quote|approved|complete
     assigned_contractor_id = Column(String(100), nullable=True)  # Internal or CSLB license_no
-    assigned_at = mapped_column(nullable=True)
-    status_updated_at = mapped_column(nullable=True)
+    assigned_at = mapped_column(DateTime(timezone=True), nullable=True)
+    status_updated_at = mapped_column(DateTime(timezone=True), nullable=True)
     internal_notes = Column(String(2000), nullable=True)
