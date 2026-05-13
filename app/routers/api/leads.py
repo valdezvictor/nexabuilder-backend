@@ -153,3 +153,39 @@ async def lead_intake(payload: LeadIntakeRequest):
         await send_magic_link_email(user.email, token)
 
     return {"message": "Submission received. Check your email for a secure link."}
+
+
+@router.get("/{lead_id}")
+async def get_lead(
+    lead_id: int,
+    identity: dict = Depends(get_current_user),
+):
+    """Get a single lead by ID."""
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        from sqlalchemy import select as sa_select
+        result = await db.execute(sa_select(Lead).where(Lead.id == lead_id))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Lead not found")
+
+        return {
+            "id": lead.id,
+            "first_name": lead.first_name,
+            "last_name": lead.last_name,
+            "email": lead.email,
+            "phone": lead.phone,
+            "vertical": lead.vertical,
+            "project_type": getattr(lead, "project_type", None),
+            "project_description": getattr(lead, "project_description", None),
+            "postal_code": lead.postal_code,
+            "city": lead.city,
+            "state": lead.state,
+            "source": getattr(lead, "source", None),
+            "routing_tier": lead.routing_tier,
+            "ai_score": lead.ai_score,
+            "ai_assessment": getattr(lead, "ai_assessment", None),
+            "estimate": getattr(lead, "estimate", None),
+            "created_at": lead.created_at.isoformat() if lead.created_at else None,
+        }
