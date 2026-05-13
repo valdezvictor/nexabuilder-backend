@@ -49,6 +49,7 @@ application.add_middleware(
         "https://call.nexabuilder.com",
         "https://partners.nexabuilder.com",
         "https://member.nexabuilder.com",
+        "https://service.nexabuilder.com",
         "http://localhost:3000",
         "http://localhost:5173",
     ],
