@@ -24,6 +24,11 @@ def _lead_to_dict(lead: Lead) -> dict:
         "state":        lead.state,
         "ai_score":     lead.ai_score,
         "routing_tier": lead.routing_tier,
+        "lead_status": getattr(lead, "lead_status", "submitted") or "submitted",
+        "ai_assessment": getattr(lead, "ai_assessment", None),
+        "estimate": getattr(lead, "estimate", None),
+        "project_type": getattr(lead, "project_type", None),
+        "source": getattr(lead, "source", None),
         "created_at":   str(lead.created_at) if lead.created_at else None,
     }
 
