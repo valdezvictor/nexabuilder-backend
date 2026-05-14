@@ -138,6 +138,49 @@ class StartIntakeRequest(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
+
+
+async def auto_save_lead(collected: dict, score: int, routing: str, history: list) -> int:
+    """Auto-save lead to DB when intake is complete."""
+    try:
+        from app.db import get_sessionmaker
+        from app.models.lead import Lead
+        name = collected.get("name", "") or ""
+        parts = name.strip().split() if name.strip() else []
+        first = parts[0] if parts else None
+        last = " ".join(parts[1:]) if len(parts) > 1 else None
+        SessionLocal = get_sessionmaker()
+        async with SessionLocal() as db:
+            lead = Lead(
+                first_name=first,
+                last_name=last,
+                phone=collected.get("phone"),
+                postal_code=collected.get("zip"),
+                city=collected.get("city"),
+                state="CA",
+                vertical="home_services",
+                project_type=collected.get("project_type"),
+                project_description=collected.get("description"),
+                source="ai_intake_widget",
+                lead_status="review",
+                ai_assessment={
+                    "complexity_score": score,
+                    "routing": routing,
+                    "budget": collected.get("budget"),
+                    "timeline": collected.get("timeline"),
+                    "ai_assessed": True,
+                    "intake_source": "widget",
+                }
+            )
+            db.add(lead)
+            await db.commit()
+            await db.refresh(lead)
+            print(f"[AUTO-SAVE] Lead #{lead.id} created from AI intake")
+            return lead.id
+    except Exception as e:
+        print(f"[AUTO-SAVE] Error: {e}")
+        return None
+
 @router.post("/start")
 async def start_intake(payload: StartIntakeRequest):
     """
@@ -231,6 +274,19 @@ async def process_message(payload: IntakeMessage):
             response["ready_for_handoff"] = True
             response["handoff_reason"] = "high_frustration"
             response["routing"] = "call_center_es" if lang == "es" else "call_center_en"
+
+        # Auto-save lead when intake completes or handoff triggered
+        if response.get("intake_complete") or response.get("ready_for_handoff"):
+            collected = response.get("collected", {})
+            if collected and any(collected.values()):
+                lead_id = await auto_save_lead(
+                    collected=collected,
+                    score=response.get("lead_score", 0),
+                    routing=response.get("routing", "unknown"),
+                    history=list(payload.conversation_history)
+                )
+                if lead_id:
+                    response["lead_id"] = lead_id
 
         return response
 
