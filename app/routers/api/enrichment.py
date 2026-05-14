@@ -170,3 +170,67 @@ async def enrichment_status(identity: dict = Depends(get_current_user)):
         "enrichment_rate": f"{enriched/total*100:.1f}%" if total else "0%",
         "by_source": by_source,
     }
+
+
+@router.post("/contractors/refresh")
+async def refresh_contractors(
+    identity: dict = Depends(get_current_user),
+):
+    """
+    Manually trigger CSLB contractor data refresh from S3.
+    Also run monthly via EventBridge rule: nexabuilder-contractor-refresh
+    """
+    import boto3, csv, psycopg2
+    from datetime import datetime
+
+    DB_CONFIG = {
+        "host": "nexabuilder-prod-db.cyfiieky5gzb.us-west-1.rds.amazonaws.com",
+        "port": 5432, "database": "postgres",
+        "user": "nexabuilder_admin", "password": "NexaDB2026Prod!"
+    }
+
+    try:
+        s3 = boto3.client("s3", region_name="us-west-1")
+        s3.download_file("nexabuilder-prod-bucket", "contractors/MasterLicenseData.csv", "/tmp/refresh.csv")
+
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+
+        rows = []
+        with open("/tmp/refresh.csv", encoding="utf-8", errors="replace") as f:
+            for row in csv.DictReader(f):
+                lic = row.get("LicenseNo","").strip()
+                if not lic: continue
+                rows.append((lic, row.get("BusinessName","").strip()[:200] or None,
+                    row.get("PrimaryStatus","").strip()[:50] or None,
+                    row.get("ExpirationDate","").strip() or None,
+                    row.get("Classifications(s)","").strip()[:200] or None))
+
+        SQL = """
+            INSERT INTO contractors (license_no, business_name, primary_status, classifications)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (license_no) DO UPDATE SET
+                business_name=EXCLUDED.business_name,
+                primary_status=EXCLUDED.primary_status,
+                classifications=EXCLUDED.classifications,
+                updated_at=NOW()
+        """
+        for i in range(0, len(rows), 2000):
+            cur.executemany(SQL, [(r[0],r[1],r[2],r[4]) for r in rows[i:i+2000]])
+            conn.commit()
+
+        cur.execute("SELECT COUNT(*) FROM contractors")
+        total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM contractors WHERE primary_status='CLEAR'")
+        active = cur.fetchone()[0]
+        conn.close()
+
+        return {
+            "status": "complete",
+            "processed": len(rows),
+            "total_in_db": total,
+            "active": active,
+            "refreshed_at": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
