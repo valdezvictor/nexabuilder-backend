@@ -14,6 +14,7 @@ from app.models.tenant import Tenant
 from app.core.security import hash_password
 from app.services.sms import send_magic_link_sms
 from app.routers.api.contractor_matching import should_route_internal, INTERNAL_CONTRACTOR
+from app.routers.api.partner_routing import find_matching_partners
 from app.services.ai_intake import assess_lead
 from jose import jwt
 from app.core.config import settings
@@ -143,6 +144,34 @@ async def submit_lead(payload: LeadIntakeRequest):
                 )
                 send_sms(INTERNAL_CONTRACTOR['phone'], sms_msg)
                 print(f"[INTERNAL ROUTE] Lead #{lead.id} routed to Victor's crew")
+
+        # Partner matching — runs after internal routing check
+        if ai_assessment.get('routing_recommendation') == 'partner_or_network':
+            try:
+                async with SessionLocal() as match_db:
+                    partner_matches = await find_matching_partners(
+                        lead_score=ai_assessment.get('composite_score') or ai_assessment.get('complexity_score', 5),
+                        project_type=payload.project_type or '',
+                        description=payload.description or '',
+                        vertical=payload.vertical or '',
+                        postal_code=payload.postal_code or '',
+                        db=match_db,
+                    )
+                if partner_matches:
+                    top_partner = partner_matches[0]
+                    ai_assessment['routing_recommendation'] = 'partner'
+                    ai_assessment['matched_partner'] = {
+                        'name': top_partner['name'],
+                        'slug': top_partner['slug'],
+                        'matched_verticals': top_partner['matched_verticals'],
+                        'commission_pct': top_partner['commission_pct'],
+                    }
+                    print(f"[PARTNER MATCH] Lead #{lead.id} → {top_partner['name']} ({top_partner['matched_verticals']})")
+                else:
+                    ai_assessment['routing_recommendation'] = 'network'
+                    print(f"[NETWORK ROUTE] Lead #{lead.id} → ping-post networks")
+            except Exception as e:
+                print(f"[PARTNER MATCH ERROR] {e}")
 
         # Auto-send SMS for phone-only leads
         if token_url and payload.phone:

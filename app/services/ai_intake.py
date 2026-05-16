@@ -192,10 +192,9 @@ def compute_composite_score(
     is_socal = (postal_code or "")[:2] in ("90", "91", "92")
     if composite >= 7 and is_socal:
         routing = "internal"
-    elif composite >= 5 and (postal_code or "")[:2] == "9":
+    elif composite >= 4:
+        # Will be refined by partner_routing.find_matching_partners at intake time
         routing = "partner_or_network"
-    elif composite >= 5:
-        routing = "network"
     else:
         routing = "nurture"
 
