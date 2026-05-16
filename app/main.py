@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # ── Only import routers that actually exist on EC2 ───────────────────────────
 from app.routers.api.enrichment import router as enrichment_router
+from app.routers.api.partner_routing import router as partner_routing_router
 from app.routers.api.ai_intake_agent import router as ai_intake_router
 from app.routers.call_center.leads import router as call_center_router
 from app.routers.api.trades import router as trades_router
@@ -77,6 +78,7 @@ application.include_router(contractor_matching_router)
 application.include_router(contractor_match_router)
 application.include_router(lead_intake_router)
 application.include_router(enrichment_router)
+application.include_router(partner_routing_router)
 application.include_router(ai_intake_router)
 application.include_router(call_center_router, prefix="/call-center")
 application.include_router(trades_router)
