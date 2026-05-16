@@ -45,7 +45,8 @@ def should_route_internal(lead: Lead, ai_assessment: dict) -> bool:
         return False
     if lead.vertical not in INTERNAL_ROUTE_VERTICALS:
         return False
-    score = ai_assessment.get("complexity_score", 0)
+    # Use composite_score (5-factor) if available, fall back to complexity_score
+    score = ai_assessment.get("composite_score") or ai_assessment.get("complexity_score", 0)
     if score < INTERNAL_ROUTE_MIN_SCORE:
         return False
     return True
@@ -92,7 +93,7 @@ async def match_contractors(
             "routing": "internal",
             "message": "Lead routed to internal crew for review",
             "matched_contractor": INTERNAL_CONTRACTOR,
-            "routing_reason": f"SoCal ZIP {lead.postal_code}, {lead.vertical}, complexity {score}/10",
+            "routing_reason": f"SoCal ZIP {lead.postal_code}, {lead.vertical}, composite score {score}/10",
             "notification_sent": True,
         }
 

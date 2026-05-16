@@ -110,6 +110,11 @@ async def submit_lead(payload: LeadIntakeRequest):
             project_type=payload.project_type,
             description=payload.description,
             postal_code=payload.postal_code,
+            budget=getattr(payload, 'budget', None),
+            first_name=payload.first_name,
+            last_name=payload.last_name,
+            phone=payload.phone,
+            email=payload.email,
         )
 
         # For phone-only leads: generate direct access URL with 30-day token
