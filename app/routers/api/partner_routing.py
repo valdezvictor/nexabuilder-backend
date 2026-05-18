@@ -1,3 +1,11 @@
+
+# ── ASSESSMENT GATE HOOK ──────────────────────────────────────────────────────
+# When a contractor is formally assigned to a lead, call:
+#   from app.services.assessment_gate import create_active_project_from_lead
+#   await create_active_project_from_lead(lead, contractor_license_number, db)
+# This grants the contractor the right to run assessments on that property.
+# See: app/services/assessment_gate.py
+# ─────────────────────────────────────────────────────────────────────────────
 # app/routers/api/partner_routing.py
 # DB-driven partner contractor vertical match router
 # Partners are managed via admin dashboard — no code changes needed

@@ -14,6 +14,7 @@ from app.models.tenant import Tenant
 from app.core.security import hash_password
 from app.services.sms import send_magic_link_sms
 from app.routers.api.contractor_matching import should_route_internal, INTERNAL_CONTRACTOR
+from app.services.assessment_gate import check_homeowner_assessment_eligibility, record_homeowner_assessment
 from app.routers.api.partner_routing import find_matching_partners
 from app.services.ai_intake import assess_lead
 from jose import jwt
@@ -55,6 +56,11 @@ async def submit_lead(payload: LeadIntakeRequest):
     if not payload.email and not payload.phone:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Email or phone is required")
+
+    # ── Address required for assessment gate ──────────────────────────────────
+    if not payload.postal_code:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Property ZIP code is required for assessment")
 
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
@@ -102,11 +108,42 @@ async def submit_lead(payload: LeadIntakeRequest):
             if tenant:
                 db.add(UserTenant(id=uuid4(), user_id=user.id, tenant_id=tenant.id))
 
+        # ── Property assessment gate ─────────────────────────────────────────
+        # Check homeowner eligibility BEFORE committing the lead
+        gate_check = await check_homeowner_assessment_eligibility(
+            user_id=str(user.id),
+            address_line1=getattr(payload, "address_line1", "") or "",
+            city=getattr(payload, "city", "") or "",
+            state=getattr(payload, "state", "") or "CA",
+            postal_code=payload.postal_code or "",
+            db=db,
+        )
+        if not gate_check["eligible"]:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=409,
+                detail=gate_check["reason"],
+                headers={"X-Error-Code": gate_check.get("error_code", "ASSESSMENT_BLOCKED")},
+            )
+
         # Link user to lead + gate assessment behind verification
         lead.user_id = str(user.id)
         lead.assessment_released = False
         await db.commit()
         await db.refresh(lead)
+
+        # Record property assessment (after lead is created and committed)
+        await record_homeowner_assessment(
+            user_id=str(user.id),
+            lead_id=lead.id,
+            vertical=payload.vertical,
+            address_line1=getattr(payload, "address_line1", "") or "",
+            city=getattr(payload, "city", "") or "",
+            state=getattr(payload, "state", "") or "CA",
+            postal_code=payload.postal_code or "",
+            db=db,
+            existing_id=gate_check.get("existing_id"),
+        )
 
         # Run AI intake assessment
         ai_assessment = assess_lead(

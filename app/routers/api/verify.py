@@ -36,6 +36,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.lead import Lead
 from app.models.otp_code import OTPCode
 from app.models.contractor_account import ContractorAccount
+from app.services.assessment_gate import check_contractor_assessment_eligibility
 from app.models.contractor import Contractor
 from app.models.license import License
 from app.services.otp_service import generate_otp, verify_otp, send_email_otp, send_sms_otp
@@ -473,3 +474,139 @@ async def submit_challenge(
         "token_type": "bearer",
         "portal_url": "https://contractor.nexabuilder.com",
     }
+
+
+# ── ADMIN: Create active project (link contractor to a project manually) ──────
+
+class ActiveProjectCreate(BaseModel):
+    license_number: str
+    address_line1:  str
+    city:           str
+    state:          str = "CA"
+    postal_code:    str
+    lead_id:        Optional[int] = None
+    vertical:       Optional[str] = None
+    source:         str = "contractor_added"
+
+
+@router.post(
+    "/admin/active-project",
+    summary="Manually create an active project (admin or contractor self-add)"
+)
+async def create_active_project(
+    payload: ActiveProjectCreate,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """
+    Creates an ActiveProject record linking a contractor to a property.
+    This grants the contractor the right to run assessments at that address.
+
+    Called by:
+    - Admin when manually assigning a contractor to a project
+    - Contractor portal when they self-report a new project they're working on
+      (requires cslb_verified=True on their account)
+    """
+    from app.services.address_service import address_hash as calc_hash, address_raw
+    from app.models.active_project import ActiveProject
+
+    ahash = calc_hash(payload.address_line1, payload.city, payload.state, payload.postal_code)
+    raw   = address_raw(payload.address_line1, payload.city, payload.state, payload.postal_code)
+
+    # Check if already exists
+    existing = await db.execute(
+        select(ActiveProject).where(
+            ActiveProject.license_number == payload.license_number.upper(),
+            ActiveProject.address_hash == ahash,
+        )
+    )
+    project = existing.scalars().first()
+
+    if project:
+        project.project_status = "active"
+        if payload.lead_id:
+            project.lead_id = payload.lead_id
+        await db.commit()
+        await db.refresh(project)
+        return {"created": False, "updated": True, "project": {
+            "id": project.id, "address_hash": ahash, "license": payload.license_number.upper()
+        }}
+
+    project = ActiveProject(
+        license_number=payload.license_number.upper(),
+        address_hash=ahash,
+        address_line1=payload.address_line1,
+        city=payload.city,
+        state=payload.state,
+        postal_code=payload.postal_code,
+        lead_id=payload.lead_id,
+        vertical=payload.vertical,
+        source=payload.source,
+    )
+    db.add(project)
+    await db.commit()
+    await db.refresh(project)
+
+    return {"created": True, "project": {
+        "id": project.id,
+        "address_hash": ahash,
+        "address": raw,
+        "license_number": payload.license_number.upper(),
+        "source": payload.source,
+    }}
+
+
+@router.get(
+    "/admin/active-projects/{license_number}",
+    summary="List active projects for a contractor license"
+)
+async def list_active_projects(
+    license_number: str,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    from app.models.active_project import ActiveProject
+    result = await db.execute(
+        select(ActiveProject).where(
+            ActiveProject.license_number == license_number.upper()
+        ).order_by(ActiveProject.created_at.desc())
+    )
+    projects = result.scalars().all()
+    return {
+        "license_number": license_number.upper(),
+        "total": len(projects),
+        "projects": [
+            {
+                "id": p.id,
+                "address_line1": p.address_line1,
+                "city": p.city,
+                "state": p.state,
+                "postal_code": p.postal_code,
+                "project_status": p.project_status,
+                "vertical": p.vertical,
+                "assessment_count": p.assessment_count,
+                "source": p.source,
+                "lead_id": p.lead_id,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in projects
+        ]
+    }
+
+
+@router.post(
+    "/admin/active-projects/{project_id}/close",
+    summary="Close an active project (assessment access revoked)"
+)
+async def close_active_project(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    from app.models.active_project import ActiveProject
+    project = await db.get(ActiveProject, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project.project_status = "completed"
+    await db.commit()
+    return {"closed": True, "project_id": project_id}
