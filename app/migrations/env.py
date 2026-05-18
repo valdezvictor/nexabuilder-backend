@@ -13,7 +13,7 @@ from alembic import context
 from app.db import Base
 
 # Import ALL models so Alembic can autogenerate migrations
-from app.models import tenant, user, messaging, auth_token
+from app.models import tenant, user, messaging, auth_token, content_block
 
 config = context.config
 
