@@ -251,3 +251,106 @@ async def create_active_project_from_lead(
     await db.commit()
     await db.refresh(project)
     return project
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RATE LIMITER  — known-address re-assessments only
+# Max 2 per user per rolling 60-minute window.
+# Only triggered when the address already has a property_assessment record.
+# New addresses bypass this — the property gate handles those upstream.
+# ─────────────────────────────────────────────────────────────────────────────
+from app.models.assessment_rate_log import AssessmentRateLog
+
+RATE_LIMIT_MAX        = 2
+RATE_LIMIT_WINDOW_MIN = 60
+
+
+async def check_rate_limit(
+    user_id: str,
+    address_hash: str,
+    db: AsyncSession,
+) -> dict:
+    """
+    Called ONLY when the address already exists in property_assessments
+    (i.e. it already has a lead attached). Returns:
+        {"allowed": True}
+        {"allowed": False, "reason": "...", "retry_after_minutes": N}
+    """
+    from sqlalchemy import func as sqlfunc
+    window_start = datetime.now(timezone.utc) - timedelta(minutes=RATE_LIMIT_WINDOW_MIN)
+
+    result = await db.execute(
+        select(sqlfunc.count(AssessmentRateLog.id)).where(
+            AssessmentRateLog.user_id      == user_id,
+            AssessmentRateLog.attempted_at >= window_start,
+        )
+    )
+    count = result.scalar() or 0
+
+    if count >= RATE_LIMIT_MAX:
+        # Find oldest log entry in window to calculate retry time
+        oldest_result = await db.execute(
+            select(AssessmentRateLog.attempted_at).where(
+                AssessmentRateLog.user_id      == user_id,
+                AssessmentRateLog.attempted_at >= window_start,
+            ).order_by(AssessmentRateLog.attempted_at.asc()).limit(1)
+        )
+        oldest = oldest_result.scalar()
+        if oldest:
+            reset_at = oldest + timedelta(minutes=RATE_LIMIT_WINDOW_MIN)
+            retry_in = max(1, int((reset_at - datetime.now(timezone.utc)).total_seconds() / 60))
+        else:
+            retry_in = RATE_LIMIT_WINDOW_MIN
+
+        return {
+            "allowed": False,
+            "reason": (
+                f"You have submitted {RATE_LIMIT_MAX} assessments for known addresses "
+                f"in the last hour. Please wait {retry_in} minute(s) before submitting another, "
+                f"or contact support@nexabuilder.com if you need assistance."
+            ),
+            "retry_after_minutes": retry_in,
+            "error_code": "RATE_LIMIT_EXCEEDED",
+        }
+
+    return {"allowed": True, "current_count": count}
+
+
+async def log_rate_limit_attempt(
+    user_id: str,
+    address_hash: str,
+    lead_id: int,
+    db: AsyncSession,
+) -> None:
+    """Log a known-address assessment attempt for rate limiting."""
+    entry = AssessmentRateLog(
+        user_id=user_id,
+        address_hash=address_hash,
+        lead_id=lead_id,
+    )
+    db.add(entry)
+    await db.commit()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 90-DAY MESSAGE — new homeowner hitting existing property assessment
+# Returns a clear, friendly explanation with contact info.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_90_day_block_message(
+    address_display: str = "this address",
+) -> str:
+    """
+    Friendly message shown when a different user tries to assess a property
+    that already has an assessment within the 90-day window.
+    """
+    return (
+        f"A NexaBuilder assessment for {address_display} was completed recently. "
+        f"To protect homeowner privacy and prevent duplicate assessments, "
+        f"each property address can only be assessed once per 90-day period. \n\n"
+        f"If you are the new owner of this property or believe this is an error, "
+        f"we're happy to lift this restriction for you — just reach out directly:\n"
+        f"  Email: support@nexabuilder.com\n"
+        f"  Phone: (213) 878-4536\n\n"
+        f"Our team typically responds within 1 business day."
+    )

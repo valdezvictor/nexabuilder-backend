@@ -14,7 +14,10 @@ from app.models.tenant import Tenant
 from app.core.security import hash_password
 from app.services.sms import send_magic_link_sms
 from app.routers.api.contractor_matching import should_route_internal, INTERNAL_CONTRACTOR
-from app.services.assessment_gate import check_homeowner_assessment_eligibility, record_homeowner_assessment
+from app.services.assessment_gate import (
+    check_homeowner_assessment_eligibility, record_homeowner_assessment,
+    check_rate_limit, log_rate_limit_attempt, build_90_day_block_message
+)
 from app.routers.api.partner_routing import find_matching_partners
 from app.services.ai_intake import assess_lead
 from jose import jwt
@@ -120,11 +123,38 @@ async def submit_lead(payload: LeadIntakeRequest):
         )
         if not gate_check["eligible"]:
             from fastapi import HTTPException
+            # Use the 90-day block message for duplicate property assessments
+            detail = gate_check["reason"]
+            if gate_check.get("error_code") == "DUPLICATE_PROPERTY_ASSESSMENT":
+                detail = build_90_day_block_message(
+                    f'{payload.postal_code or "this address"}'
+                )
             raise HTTPException(
                 status_code=409,
-                detail=gate_check["reason"],
+                detail=detail,
                 headers={"X-Error-Code": gate_check.get("error_code", "ASSESSMENT_BLOCKED")},
             )
+
+        # ── Rate limit: only for known addresses (action="update") ──────────────
+        # A known address means it already has a lead attached.
+        # Fresh addresses skip this — the property gate handled them above.
+        if gate_check.get("action") == "update":
+            existing_lead_id = gate_check.get("existing_id")
+            rate_check = await check_rate_limit(
+                user_id=str(user.id) if user else "unknown",
+                address_hash=gate_check["address_hash"],
+                db=db,
+            )
+            if not rate_check["allowed"]:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=429,
+                    detail=rate_check["reason"],
+                    headers={
+                        "X-Error-Code": "RATE_LIMIT_EXCEEDED",
+                        "Retry-After": str(rate_check["retry_after_minutes"] * 60),
+                    },
+                )
 
         # Link user to lead + gate assessment behind verification
         lead.user_id = str(user.id)
@@ -144,6 +174,15 @@ async def submit_lead(payload: LeadIntakeRequest):
             db=db,
             existing_id=gate_check.get("existing_id"),
         )
+
+        # Log rate limit entry only for known addresses (action="update")
+        if gate_check.get("action") == "update":
+            await log_rate_limit_attempt(
+                user_id=str(user.id),
+                address_hash=gate_check["address_hash"],
+                lead_id=lead.id,
+                db=db,
+            )
 
         # Run AI intake assessment
         ai_assessment = assess_lead(
