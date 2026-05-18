@@ -102,6 +102,9 @@ async def submit_lead(payload: LeadIntakeRequest):
             if tenant:
                 db.add(UserTenant(id=uuid4(), user_id=user.id, tenant_id=tenant.id))
 
+        # Link user to lead + gate assessment behind verification
+        lead.user_id = str(user.id)
+        lead.assessment_released = False
         await db.commit()
         await db.refresh(lead)
 
@@ -182,7 +185,10 @@ async def submit_lead(payload: LeadIntakeRequest):
 
         return {
             "id":       lead.id,
+            "user_id":  str(user.id),
             "message":  "Lead submitted successfully",
+            "verification_required": True,
+            "verification_channels": ["email"] if payload.email else ["sms"],
             "email":    lead.email,
             "phone":    lead.phone,
             "source":   payload.source,

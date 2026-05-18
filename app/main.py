@@ -36,6 +36,7 @@ from app.routers.api.contractor_match import router as contractor_match_router
 from app.routers.admin_metrics import router as admin_metrics_router
 from app.routers.admin_metrics import dashboard_router
 from app.routers.api.content import router as content_router
+from app.routers.api.verify import router as verify_router
 from app.db import test_connection
 
 load_dotenv()
@@ -94,6 +95,7 @@ application.include_router(metrics_router)
 application.include_router(admin_metrics_router, prefix="/api")
 application.include_router(dashboard_router)
 application.include_router(content_router)
+application.include_router(verify_router)
 
 # ── Prometheus instrumentation ───────────────────────────────────────────────
 Instrumentator().instrument(application).expose(application)
