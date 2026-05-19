@@ -52,6 +52,10 @@ application = FastAPI(title="NexaBuilder API", redirect_slashes=True)
 application.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://nexabuilder.com",
+        "https://www.nexabuilder.com",
+        "https://unapiscina.com",
+        "https://www.unapiscina.com",
         "https://admin.nexabuilder.com",
         "https://contractor.nexabuilder.com",
         "https://call.nexabuilder.com",
@@ -60,6 +64,7 @@ application.add_middleware(
         "https://service.nexabuilder.com",
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://127.0.0.1:5500",
     ],
     allow_credentials=True,
     allow_methods=["*"],
