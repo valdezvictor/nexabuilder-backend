@@ -49,6 +49,68 @@ async def list_leads(
         return [_lead_to_dict(l) for l in leads]
 
 
+
+
+@router.get("/me")
+async def get_my_leads(
+    identity: dict = Depends(get_current_user),
+):
+    """
+    Returns the most recent lead(s) for the authenticated user.
+    Matches by email from the JWT token — this is the member portal entry point.
+    Called by Dashboard when no lead_id is in localStorage.
+    """
+    from app.models.user import User
+    from uuid import UUID
+
+    # Get email from the JWT identity
+    user_obj = identity.get("user")
+    user_email = None
+
+    # Try to get email from user object
+    if user_obj and hasattr(user_obj, "email"):
+        user_email = user_obj.email
+    
+    # Fallback: look up by user_id (sub claim)
+    user_id = identity.get("sub") or identity.get("user_id")
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        if not user_email and user_id:
+            try:
+                user = await db.get(User, UUID(str(user_id)))
+                if user:
+                    user_email = user.email
+            except Exception:
+                pass
+
+        if not user_email:
+            raise HTTPException(status_code=404, detail="No leads found for this account")
+
+        # Find leads by email — most recent first
+        stmt = (
+            select(Lead)
+            .where(Lead.email == user_email)
+            .order_by(Lead.created_at.desc())
+            .limit(5)
+        )
+        result = await db.execute(stmt)
+        leads_list = result.scalars().all()
+
+        if not leads_list:
+            raise HTTPException(
+                status_code=404,
+                detail="No project found for this account. Please submit a project at nexabuilder.com/get-quote/"
+            )
+
+        return {
+            "leads": [_lead_to_dict(l) for l in leads_list],
+            "most_recent": _lead_to_dict(leads_list[0]),
+            "total": len(leads_list),
+            "email": user_email,
+        }
+
+
 @router.get("/{lead_id}")
 async def get_lead(
     lead_id: int,
