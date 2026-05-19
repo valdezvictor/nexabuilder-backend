@@ -111,17 +111,19 @@ async def submit_lead(payload: LeadIntakeRequest):
             if tenant:
                 db.add(UserTenant(id=uuid4(), user_id=user.id, tenant_id=tenant.id))
 
-        # ── Property assessment gate (graceful — non-blocking for MVP) ─────────
+        # ── Property assessment gate (non-blocking, isolated session) ──────────
         gate_check = {"eligible": True, "action": "create", "address_hash": ""}
         try:
-            gate_check = await check_homeowner_assessment_eligibility(
-                user_id=str(user.id),
-                address_line1=getattr(payload, "address_line1", "") or "",
-                city=getattr(payload, "city", "") or "",
-                state=getattr(payload, "state", "") or "CA",
-                postal_code=payload.postal_code or "",
-                db=db,
-            )
+            # Use a fresh session so gate errors don't taint the main session
+            async with SessionLocal() as gate_db:
+                gate_check = await check_homeowner_assessment_eligibility(
+                    user_id=str(user.id),
+                    address_line1=getattr(payload, "address_line1", "") or "",
+                    city=getattr(payload, "city", "") or "",
+                    state=getattr(payload, "state", "") or "CA",
+                    postal_code=payload.postal_code or "",
+                    db=gate_db,
+                )
             if not gate_check["eligible"]:
                 from fastapi import HTTPException
                 detail = gate_check["reason"]
@@ -139,7 +141,8 @@ async def submit_lead(payload: LeadIntakeRequest):
             print(f"[ASSESSMENT GATE] Non-blocking error: {gate_err}")
             gate_check = {"eligible": True, "action": "create", "address_hash": ""}
 
-        # Link user to lead
+        # Link user to lead and commit BEFORE gate check
+        # (gate check can fail due to DB type issues — commit must happen first)
         try:
             lead.user_id = str(user.id)
         except Exception:
@@ -148,19 +151,20 @@ async def submit_lead(payload: LeadIntakeRequest):
         await db.commit()
         await db.refresh(lead)
 
-        # Record property assessment (non-blocking)
+        # Record property assessment (non-blocking, fresh session)
         try:
-            await record_homeowner_assessment(
-                user_id=str(user.id),
-                lead_id=lead.id,
-                vertical=payload.vertical,
-                address_line1=getattr(payload, "address_line1", "") or "",
-                city=getattr(payload, "city", "") or "",
-                state=getattr(payload, "state", "") or "CA",
-                postal_code=payload.postal_code or "",
-                db=db,
-                existing_id=gate_check.get("existing_id"),
-            )
+            async with SessionLocal() as rec_db:
+                await record_homeowner_assessment(
+                    user_id=str(user.id),
+                    lead_id=lead.id,
+                    vertical=payload.vertical,
+                    address_line1=getattr(payload, "address_line1", "") or "",
+                    city=getattr(payload, "city", "") or "",
+                    state=getattr(payload, "state", "") or "CA",
+                    postal_code=payload.postal_code or "",
+                    db=rec_db,
+                    existing_id=gate_check.get("existing_id"),
+                )
         except Exception as rec_err:
             print(f"[RECORD ASSESSMENT] Non-blocking error: {rec_err}")
 
