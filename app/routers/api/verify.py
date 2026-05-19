@@ -25,6 +25,12 @@ Business rules:
 import random
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Header
+from app.core.auth import get_current_user
+
+def require_admin(identity: dict = Depends(get_current_user)) -> bool:
+    if identity.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return True
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
