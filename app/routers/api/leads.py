@@ -197,6 +197,185 @@ async def get_my_projects(
 
 
 
+
+
+@router.get("/{lead_id}/timeline")
+async def get_lead_timeline(
+    lead_id: int,
+    identity: dict = Depends(get_current_user),
+):
+    """
+    Full activity timeline for a lead.
+    Combines: status milestones + routing events + click events.
+    Used by member portal, contractor portal, and call center portal.
+    """
+    from app.models.routing_event import RoutingEvent
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        # Get lead
+        result = await db.execute(select(Lead).where(Lead.id == lead_id))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Lead not found")
+
+        # Get all routing events
+        from sqlalchemy import text
+        r_events = await db.execute(text(
+            "SELECT re.event_type, re.payload, re.created_at, "
+            "c.business_name, c.license_no "
+            "FROM routing_events re "
+            "LEFT JOIN contractors c ON c.id = re.contractor_id "
+            "WHERE re.lead_id = :lid "
+            "ORDER BY re.created_at ASC"
+        ), {"lid": lead_id})
+        raw_events = r_events.fetchall()
+
+    # ── Build timeline entries ─────────────────────────────────────────────
+    entries = []
+
+    # 1. Lead created (always first)
+    entries.append({
+        "id": "created",
+        "timestamp": lead.created_at.isoformat() if lead.created_at else None,
+        "type": "milestone",
+        "actor": "system",
+        "icon": "📋",
+        "title": "Project Submitted",
+        "description": f"{lead.project_type or lead.vertical} assessment submitted for {lead.postal_code}",
+        "status": "done",
+        "meta": {
+            "vertical": lead.vertical,
+            "project_type": lead.project_type,
+            "source": lead.source,
+        }
+    })
+
+    # 2. AI Assessment (infer from ai_assessment presence)
+    if lead.ai_assessment:
+        ai = lead.ai_assessment
+        entries.append({
+            "id": "ai_assessed",
+            "timestamp": lead.created_at.isoformat() if lead.created_at else None,
+            "type": "milestone",
+            "actor": "ai",
+            "icon": "🤖",
+            "title": "AI Assessment Complete",
+            "description": f"Score {ai.get('complexity_score', '-')}/10 · {ai.get('estimated_cost_range', '')} · {ai.get('complexity_label', '')}",
+            "status": "done",
+            "meta": {
+                "score": ai.get("complexity_score"),
+                "cost_range": ai.get("estimated_cost_range"),
+                "permit_required": ai.get("permit_required"),
+                "license_types": ai.get("license_types_needed", []),
+            }
+        })
+
+    # 3. Routing events from DB
+    event_type_map = {
+        # Contractor matching
+        "contractor_matched":        ("👷", "Contractor Match Found",      "contractor", "milestone"),
+        "bid_sent":                  ("📤", "Bid Invitation Sent",          "system",     "action"),
+        "bid_accepted":              ("✅", "Contractor Accepted Bid",      "contractor", "milestone"),
+        "bid_declined":              ("❌", "Contractor Declined",          "contractor", "action"),
+        "bid_expired":               ("⏰", "Bid Invitation Expired",       "system",     "action"),
+        # Status changes
+        "status_changed":            ("🔄", "Status Updated",              "admin",      "action"),
+        "site_visit_scheduled":      ("📅", "Site Visit Scheduled",        "contractor", "milestone"),
+        "quote_sent":                ("📊", "Quote Submitted",              "contractor", "milestone"),
+        "quote_approved":            ("🤝", "Quote Approved",               "member",     "milestone"),
+        "project_started":           ("🏗",  "Project Started",             "contractor", "milestone"),
+        "project_completed":         ("🏆", "Project Completed",           "contractor", "milestone"),
+        # Member actions
+        "financing_modal_opened":    ("💰", "Viewed Financing Options",    "member",     "engagement"),
+        "financing_interest_click":  ("💰", "Requested Financing Info",   "member",     "engagement"),
+        "financing_lead_submitted":  ("💰", "Financing Application Sent", "member",     "engagement"),
+        "insurance_modal_opened":    ("🛡",  "Viewed Insurance Options",   "member",     "engagement"),
+        "insurance_interest_click":  ("🛡",  "Requested Insurance Review", "member",     "engagement"),
+        "insurance_lead_submitted":  ("🛡",  "Insurance Request Sent",     "member",     "engagement"),
+        "upgrade_selected":          ("⭐", "Materials Upgrade Selected",  "member",     "engagement"),
+        "new_project_started":       ("➕", "New Project Added",            "member",     "action"),
+        # Call center / agent
+        "agent_called":              ("📞", "Agent Call",                  "agent",      "action"),
+        "agent_note":                ("📝", "Agent Note Added",            "agent",      "action"),
+        "otp_verified":              ("✅", "Identity Verified",            "system",     "milestone"),
+        "magic_link_sent":           ("🔗", "Magic Link Sent",              "system",     "action"),
+        "portal_accessed":           ("🏠", "Member Portal Accessed",       "member",     "action"),
+    }
+
+    for ev in raw_events:
+        ev_type, payload, created_at, contractor_name, contractor_lic = ev
+        payload = payload or {}
+
+        if ev_type in event_type_map:
+            icon, title, actor, ev_class = event_type_map[ev_type]
+        else:
+            icon, title, actor, ev_class = "📌", ev_type.replace("_", " ").title(), "system", "action"
+
+        # Build description from payload
+        desc_parts = []
+        if contractor_name:
+            desc_parts.append(f"Contractor: {contractor_name} (#{contractor_lic})")
+        if payload.get("publisher_id"):
+            desc_parts.append(f"Source: {payload['publisher_id']}")
+        if payload.get("credit_range"):
+            desc_parts.append(f"Credit: {payload['credit_range']}")
+        if payload.get("coverage_types"):
+            desc_parts.append(f"Coverage: {', '.join(payload['coverage_types'])}")
+        if payload.get("estimated_monthly"):
+            desc_parts.append(f"Est. monthly: ${payload['estimated_monthly']}")
+        if payload.get("note"):
+            desc_parts.append(payload["note"])
+
+        entries.append({
+            "id": f"{ev_type}_{created_at.timestamp() if created_at else 0}",
+            "timestamp": created_at.isoformat() if created_at else None,
+            "type": ev_class,
+            "actor": actor,
+            "icon": icon,
+            "title": title,
+            "description": " · ".join(desc_parts) if desc_parts else None,
+            "status": "done",
+            "meta": payload,
+        })
+
+    # 4. Current status → future milestones as pending
+    STATUS_MILESTONES = [
+        ("matched",    "👷", "Contractor Assigned"),
+        ("site_visit", "📅", "Site Visit"),
+        ("quote",      "📊", "Quote Delivered"),
+        ("approved",   "🤝", "Quote Approved"),
+        ("complete",   "🏆", "Project Complete"),
+    ]
+
+    current_status = lead.lead_status or "submitted"
+    STATUS_ORDER = ["submitted", "review", "matched", "site_visit", "quote", "approved", "complete"]
+    current_idx = STATUS_ORDER.index(current_status) if current_status in STATUS_ORDER else 0
+
+    for status, icon, label in STATUS_MILESTONES:
+        if status not in [STATUS_ORDER[i] for i in range(current_idx + 1)]:
+            entries.append({
+                "id": f"pending_{status}",
+                "timestamp": None,
+                "type": "milestone",
+                "actor": "system",
+                "icon": icon,
+                "title": label,
+                "description": "Pending",
+                "status": "pending",
+                "meta": {}
+            })
+
+    return {
+        "lead_id": lead_id,
+        "lead_status": current_status,
+        "vertical": lead.vertical,
+        "project_type": lead.project_type,
+        "total_entries": len(entries),
+        "entries": entries,
+    }
+
 @router.post("/{lead_id}/events")
 async def track_lead_event(
     lead_id: int,
