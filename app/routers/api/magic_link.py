@@ -25,13 +25,38 @@ router = APIRouter(prefix="/auth/magic-link", tags=["Magic Link Auth"])
 MAGIC_LINK_EXP_MINUTES = 15
 
 
-async def _send_magic_link_email(email: str, token: str):
-    """Send magic link email via AWS SES"""
+# Portal URL map — role → base URL
+PORTAL_URLS = {
+    "contractor":  "https://contractor.nexabuilder.com/auth/verify",
+    "agent":       "https://call.nexabuilder.com/auth/verify",
+    "admin":       "https://admin.nexabuilder.com/auth/verify",
+    "superadmin":  "https://admin.nexabuilder.com/auth/verify",
+    "partner":     "https://partners.nexabuilder.com/auth/verify",
+    # Default — homeowners / leads
+    "member":      "https://member.nexabuilder.com/auth/verify",
+    "lead":        "https://member.nexabuilder.com/auth/verify",
+    "user":        "https://member.nexabuilder.com/auth/verify",
+}
+
+PORTAL_LABELS = {
+    "contractor": ("Contractor Portal", "Your Bid Inbox", "Access My Contractor Portal", "#059669"),
+    "agent":      ("Call Center",       "Your Agent Dashboard", "Access Call Center", "#7c3aed"),
+    "admin":      ("Admin Console",     "Your Admin Dashboard", "Access Admin Console", "#dc2626"),
+    "default":    ("Member Portal",     "Your Project Dashboard", "Access My Project", "#1d6fde"),
+}
+
+
+async def _send_magic_link_email(email: str, token: str, role: str = "user"):
+    """Send magic link email via AWS SES — routes to correct portal by role."""
     import boto3
     from botocore.exceptions import ClientError
 
-    magic_url = f"https://member.nexabuilder.com/auth/verify?token={token}"
-    print(f"[MAGIC LINK] To: {email} | URL: {magic_url}")
+    base_url  = PORTAL_URLS.get(role, PORTAL_URLS["member"])
+    magic_url = f"{base_url}?token={token}"
+    print(f"[MAGIC LINK] role={role} To: {email} | URL: {magic_url}")
+
+    label_key = role if role in PORTAL_LABELS else "default"
+    portal_name, portal_desc, btn_label, btn_color = PORTAL_LABELS[label_key]
 
     try:
         ses = boto3.client("ses", region_name="us-east-1")
@@ -39,40 +64,63 @@ async def _send_magic_link_email(email: str, token: str):
             Source="NexaBuilder <noreply@nexabuilder.com>",
             Destination={"ToAddresses": [email]},
             Message={
-                "Subject": {"Data": "Your NexaBuilder access link", "Charset": "UTF-8"},
+                "Subject": {
+                    "Data": f"Your NexaBuilder {portal_name} sign-in link",
+                    "Charset": "UTF-8"
+                },
                 "Body": {
                     "Html": {
-                        "Data": f"""
-                        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-                          <h2 style="color: #2563eb;">Access Your Project</h2>
-                          <p>Click the button below to access your NexaBuilder dashboard.</p>
-                          <a href="{magic_url}"
-                             style="display: inline-block; padding: 12px 24px; background: #2563eb;
-                                    color: white; text-decoration: none; border-radius: 6px;
-                                    font-size: 16px; margin: 16px 0;">
-                            Access My Project
-                          </a>
-                          <p style="color: #666; font-size: 14px;">
-                            This link expires in 15 minutes. If you didn't request this, ignore this email.
-                          </p>
-                          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-                          <p style="color: #999; font-size: 12px;">
-                            NexaBuilder — Connecting you with the right service provider.
-                          </p>
-                        </div>
-                        """,
+                        "Data": f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:'DM Sans',Arial,sans-serif;">
+<div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;
+            border:1px solid #e2e5e9;box-shadow:0 4px 24px rgba(10,22,40,.08);overflow:hidden;">
+  <div style="background:#0a1628;padding:24px 32px;">
+    <div style="font-size:1.3rem;font-weight:900;color:#fff;">
+      Nexa<span style="color:#e8b84b;">Builder</span>
+    </div>
+    <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:4px;">
+      {portal_name}
+    </div>
+  </div>
+  <div style="padding:32px;">
+    <h2 style="font-size:1.2rem;font-weight:800;color:#0a1628;margin:0 0 12px;">
+      {portal_desc}
+    </h2>
+    <p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0 0 24px;">
+      Click the button below to sign in securely. This link expires in 15 minutes
+      and can only be used once.
+    </p>
+    <a href="{magic_url}"
+       style="display:inline-block;padding:14px 28px;background:{btn_color};
+              color:#fff;text-decoration:none;border-radius:10px;
+              font-size:15px;font-weight:700;margin-bottom:24px;">
+      {btn_label} →
+    </a>
+    <div style="font-size:12px;color:#94a3b8;border-top:1px solid #f1f5f9;
+                padding-top:16px;margin-top:8px;">
+      If you didn't request this link, you can safely ignore this email.
+      This link will expire automatically.<br><br>
+      <a href="{magic_url}" style="color:#94a3b8;word-break:break-all;">
+        {magic_url}
+      </a>
+    </div>
+  </div>
+</div>
+</body>
+</html>""",
                         "Charset": "UTF-8"
                     },
                     "Text": {
-                        "Data": f"Access your NexaBuilder project: {magic_url}",
+                        "Data": f"Sign in to your NexaBuilder {portal_name}: {magic_url}\n\nThis link expires in 15 minutes.",
                         "Charset": "UTF-8"
                     }
                 }
             }
         )
-        print(f"[SES] Magic link email sent to {email}")
+        print(f"[SES] Magic link sent to {email} → {magic_url}")
     except ClientError as e:
-        print(f"[SES ERROR] {e.response['Error']['Message']} - falling back to console log")
+        print(f"[SES ERROR] {e.response['Error']['Message']}")
         print(f"[MAGIC LINK FALLBACK] {magic_url}")
 
 
@@ -103,7 +151,8 @@ async def request_magic_link(payload: MagicLinkRequest):
 
         if user:
             token = _create_magic_token(str(user.id), user.email)
-            await _send_magic_link_email(payload.email, token)
+            role = user.role.value if hasattr(user.role, "value") else str(user.role)
+            await _send_magic_link_email(payload.email, token, role=role)
 
     return {"message": "If an account exists for that email, a link has been sent."}
 
