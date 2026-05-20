@@ -152,7 +152,7 @@ async def submit_lead(payload: LeadIntakeRequest):
         # Auto-flag demo/VIP emails for full contractor visibility
         DEMO_EMAILS = {
             "finance911@gmail.com",   # Raul Cruz - Finance 911
-            "valdez.victor@gmail.com", # Victor - internal testing
+            "member@nexabuilder.com",  # Victor member portal testing
         }
         if (lead.email or "").lower().strip() in DEMO_EMAILS:
             import json as _json
