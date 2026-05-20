@@ -28,7 +28,7 @@ class PropertyAssessment(Base):
     city                = Column(String(100), nullable=True)
     state               = Column(String(2), nullable=True)
     postal_code         = Column(String(10), nullable=True)
-    user_id             = Column(String(36), nullable=False, index=True)
+    user_id             = Column(UUID(as_uuid=False), nullable=False, index=True)
     lead_id             = Column(Integer, nullable=False, index=True)
     vertical            = Column(String(100), nullable=True)
     permit_verified     = Column(Boolean, nullable=False, default=False)
