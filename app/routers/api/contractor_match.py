@@ -206,21 +206,33 @@ async def match_contractors_for_lead(
                 "match_reason": f"{'Primary: ' + primary_class if primary_match else 'Alt classification'} · {proximity}",
             })
 
+        # Demo mode: VIP leads see full contractor list with rankings
+        demo_flags = getattr(lead, 'demo_flags', {}) or {}
+        is_demo    = demo_flags.get('show_all_contractors', False)
+        demo_user  = demo_flags.get('demo_user', None)
+
         return {
-            "lead_id": lead_id,
-            "lead_name": f"{lead.first_name or ''} {lead.last_name or ''}".strip(),
-            "vertical": lead.vertical,
+            "lead_id":    lead_id,
+            "lead_name":  f"{lead.first_name or ''} {lead.last_name or ''}".strip(),
+            "vertical":   lead.vertical,
             "project_type": lead.project_type,
             "postal_code": zip_code,
-            "city": city,
-            "county": county,
+            "city":        city,
+            "county":      county,
             "primary_classification": primary_class,
             "classifications_searched": all_classes,
             "ai_recommended_licenses": ai_licenses,
             "match_count": len(contractors),
-            "matches": contractors,
-            # Keep backward compat for member portal
-            "contractors": contractors,
+            "matches":     contractors,
+            "contractors": contractors,           # backward compat
+            "is_demo":     is_demo,
+            "demo_user":   demo_user,
+            # For demo leads: show vetting status and ranking explanation
+            "vetting_note": (
+                f"Showing {len(contractors)} CSLB-verified contractors ranked by "
+                f"license match and proximity. NexaBuilder will send bid invitations "
+                f"to the top matches and present the accepted contractor to the homeowner."
+            ) if is_demo else None,
         }
 
 
