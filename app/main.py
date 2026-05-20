@@ -84,6 +84,14 @@ application.include_router(service_job_router)
 application.include_router(documents_router)
 application.include_router(contractor_matching_router)
 application.include_router(contractor_match_router)
+
+# Contractor portal (contractor.nexabuilder.com)
+from app.routers.api.contractor_portal import router as contractor_portal_router
+application.include_router(contractor_portal_router)
+
+# Leads router (member portal timeline, my-projects, events)
+from app.routers.api.leads import router as leads_api_router
+application.include_router(leads_api_router, prefix="/api")
 application.include_router(lead_intake_router)
 application.include_router(enrichment_router)
 application.include_router(partner_routing_router)
