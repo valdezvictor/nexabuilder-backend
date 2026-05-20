@@ -148,8 +148,35 @@ async def submit_lead(payload: LeadIntakeRequest):
         except Exception:
             pass
         lead.assessment_released = False
+
+        # Auto-flag demo/VIP emails for full contractor visibility
+        DEMO_EMAILS = {
+            "finance911@gmail.com",   # Raul Cruz - Finance 911
+            "valdez.victor@gmail.com", # Victor - internal testing
+        }
+        if (lead.email or "").lower().strip() in DEMO_EMAILS:
+            import json as _json
+            demo_flags = _json.dumps({
+                "show_all_contractors": True,
+                "vip": True,
+                "demo_user": lead.email
+            })
+            from sqlalchemy import text as _text
+            # Will be set after commit via separate statement
+            lead._demo_email = True
+
         await db.commit()
         await db.refresh(lead)
+
+        # Apply demo flags if needed (after commit to avoid transaction conflict)
+        if getattr(lead, '_demo_email', False):
+            async with SessionLocal() as demo_db:
+                import json as _json2
+                flag_val = _json2.dumps({"show_all_contractors": True, "vip": True, "demo_user": lead.email})
+                await demo_db.execute(_text(
+                    "UPDATE leads SET demo_flags = CAST(:flag AS jsonb) WHERE id = :lid"
+                ), {"flag": flag_val, "lid": lead.id})
+                await demo_db.commit()
 
         # Record property assessment (non-blocking, fresh session)
         try:
