@@ -31,7 +31,8 @@ async def get_agreement_status(
     Check if the current contractor has signed the portal agreement.
     Called on every dashboard load — gates access to bid inbox.
     """
-    user_id = str(identity.get("sub") or "")
+    user    = identity["user"]
+    user_id = str(user.id)
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         result = await db.execute(
@@ -72,7 +73,8 @@ async def sign_agreement(
     full_name (typed) = electronic signature per ESIGN Act.
     Requires: full_name, email, license_number, terms_acknowledged (list of term IDs)
     """
-    user_id = str(identity.get("sub") or "")
+    user    = identity["user"]
+    user_id = str(user.id)
 
     full_name = (body.get("full_name") or "").strip()
     email     = (body.get("email") or "").strip()
@@ -133,7 +135,8 @@ async def get_my_bids(
     Returns all bid invitations for this contractor.
     Lead contact info is masked until bid is accepted.
     """
-    user_id = str(identity.get("sub") or "")
+    user    = identity["user"]
+    user_id = str(user.id)
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         # Get contractor account to find contractor_db_id
@@ -228,7 +231,8 @@ async def accept_bid(
     Triggers: lead_status → matched, routing_event bid_accepted,
               member portal unlocks contractor contact.
     """
-    user_id = str(identity.get("sub") or "")
+    user    = identity["user"]
+    user_id = str(user.id)
     bid_amount = body.get("bid_amount")
     bid_notes  = body.get("bid_notes", "")
 
@@ -371,7 +375,8 @@ async def update_project_status(
 @router.get("/profile")
 async def get_contractor_profile(identity: dict = Depends(get_current_user)):
     """Returns contractor account + CSLB record for the authenticated contractor."""
-    user_id = str(identity.get("sub") or "")
+    user    = identity["user"]
+    user_id = str(user.id)
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         acct_r = await db.execute(
@@ -420,7 +425,7 @@ async def send_bid_invitation(
     Admin/system endpoint to send a bid invitation to a contractor for a lead.
     lead_id + contractor_id (from contractors table) required.
     """
-    if identity.get("role") not in ("admin", "superadmin"):
+    if identity.get("role") not in ("admin", "superadmin") and identity["user"].role.value not in ("admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     lead_id       = body.get("lead_id")
