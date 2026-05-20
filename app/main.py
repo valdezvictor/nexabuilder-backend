@@ -89,6 +89,9 @@ application.include_router(contractor_match_router)
 from app.routers.api.contractor_portal import router as contractor_portal_router
 application.include_router(contractor_portal_router)
 
+from app.routers.api.contractor_outreach import router as outreach_router
+application.include_router(outreach_router)
+
 # Leads router (member portal timeline, my-projects, events)
 from app.routers.api.leads import router as leads_api_router
 application.include_router(leads_api_router, prefix="/api")
