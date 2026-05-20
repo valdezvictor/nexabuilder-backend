@@ -62,6 +62,151 @@ async def get_agreement_status(
         }
 
 
+
+# ── Real-time agreement field validation ──────────────────────────────────────
+
+@router.post("/agreement/validate")
+async def validate_agreement_fields(
+    body: dict,
+    identity: dict = Depends(get_current_user),
+):
+    """
+    Real-time validation called as contractor fills in the agreement form.
+    Checks license number and email against the CSLB DB and contractor account.
+
+    Returns:
+        license_valid: bool
+        license_status: "valid" | "not_found" | "not_clear" | "claimed_by_other"
+        license_business_name: str | None
+        license_city: str | None
+        license_classifications: str | None
+        email_matches_record: bool | None  (None = no record on file)
+        email_on_file: str | None
+        name_suggestion: str | None        (from CSLB business name)
+        warnings: list[str]
+        errors: list[str]
+    """
+    user    = identity["user"]
+    user_id = str(user.id)
+    license_no = (body.get("license_number") or "").strip()
+    email      = (body.get("email") or "").strip().lower()
+
+    warnings = []
+    errors   = []
+    result   = {
+        "license_valid":          False,
+        "license_status":         "not_checked",
+        "license_business_name":  None,
+        "license_city":           None,
+        "license_classifications": None,
+        "license_phone":          None,
+        "license_expiration":     None,
+        "email_matches_record":   None,
+        "email_on_file":          None,
+        "name_suggestion":        None,
+        "warnings":               warnings,
+        "errors":                 errors,
+    }
+
+    if not license_no:
+        return result
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        # ── 1. Validate license in CSLB DB ────────────────────────────────────
+        r = await db.execute(text(
+            "SELECT id, license_no, business_name, city, county, "
+            "classifications, primary_status, expiration_date, phone, email "
+            "FROM contractors WHERE license_no = :lic LIMIT 1"
+        ), {"lic": license_no})
+        cslb = r.fetchone()
+
+        if not cslb:
+            result["license_status"] = "not_found"
+            errors.append(
+                f"License #{license_no} was not found in the CSLB database. "
+                "Please verify you entered the correct number."
+            )
+            return result
+
+        # Check license status
+        if cslb[6] != "CLEAR":
+            result["license_status"] = "not_clear"
+            errors.append(
+                f"License #{license_no} has a status of '{cslb[6]}' in the CSLB database. "
+                "Only contractors with CLEAR status can join the NexaBuilder network."
+            )
+            return result
+
+        # Check if already claimed by a DIFFERENT user
+        existing_acct = await db.execute(text(
+            "SELECT ca.user_id, u.email "
+            "FROM contractor_accounts ca "
+            "JOIN users u ON u.id::text = ca.user_id::text "
+            "WHERE ca.license_number = :lic AND ca.user_id != :uid"
+        ), {"lic": license_no, "uid": user_id})
+        claimed = existing_acct.fetchone()
+
+        if claimed:
+            result["license_status"] = "claimed_by_other"
+            errors.append(
+                f"License #{license_no} is already registered in the NexaBuilder portal "
+                "by another account. If this is your license, contact support."
+            )
+            return result
+
+        # License is valid
+        result["license_valid"]          = True
+        result["license_status"]         = "valid"
+        result["license_business_name"]  = cslb[2]
+        result["license_city"]           = cslb[3]
+        result["license_classifications"] = cslb[5]
+        result["license_phone"]          = cslb[8]
+        result["license_expiration"]     = cslb[7].isoformat() if cslb[7] else None
+        result["name_suggestion"]        = cslb[2]  # suggest CSLB business name
+
+        # ── 2. Validate email ──────────────────────────────────────────────────
+        cslb_email     = (cslb[9] or "").strip().lower()    # CSLB record email
+        outreach_email = None
+
+        # Check if we have an outreach-captured email for this contractor
+        r2 = await db.execute(text(
+            "SELECT payload->>'email' as email FROM routing_events "
+            "WHERE contractor_id = :cid AND event_type = 'email_captured' "
+            "ORDER BY created_at DESC LIMIT 1"
+        ), {"cid": cslb[0]})
+        outreach_row = r2.fetchone()
+        if outreach_row and outreach_row[0]:
+            outreach_email = outreach_row[0].strip().lower()
+
+        # The "email on file" = outreach email if available, else CSLB email
+        email_on_file = outreach_email or cslb_email or None
+        result["email_on_file"] = email_on_file
+
+        if email and email_on_file:
+            if email == email_on_file:
+                result["email_matches_record"] = True
+            else:
+                result["email_matches_record"] = False
+                warnings.append(
+                    f"The email you entered ({email}) is different from the email "
+                    f"we have on file for license #{license_no} ({email_on_file}). "
+                    "You can continue with your entered email — it will be recorded "
+                    "and our team may follow up to verify. Alternatively, use "
+                    f"'{email_on_file}' to match our records exactly."
+                )
+        elif email and not email_on_file:
+            # No email on file — this is a new capture, which is fine
+            result["email_matches_record"] = None
+            # Note: this enriches our DB
+            warnings.append(
+                f"No email on file for license #{license_no}. "
+                "Your email will be added to our contractor records."
+            )
+
+    return result
+
+
 @router.post("/agreement/sign")
 async def sign_agreement(
     body: dict,
