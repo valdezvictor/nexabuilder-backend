@@ -111,6 +111,90 @@ async def get_my_leads(
         }
 
 
+
+
+@router.get("/my-projects")
+async def get_my_projects(
+    identity: dict = Depends(get_current_user),
+):
+    """
+    Returns all projects for the authenticated user, grouped by property address.
+    Each address group contains all verticals assessed for that property.
+    Powers the member portal multi-project dashboard.
+    """
+    from app.models.user import User
+    from uuid import UUID
+
+    user_obj = identity.get("user")
+    user_email = None
+    if user_obj and hasattr(user_obj, "email"):
+        user_email = user_obj.email
+
+    user_id = identity.get("sub") or identity.get("user_id")
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        if not user_email and user_id:
+            try:
+                user = await db.get(User, UUID(str(user_id)))
+                if user:
+                    user_email = user.email
+            except Exception:
+                pass
+
+        if not user_email:
+            raise HTTPException(status_code=404, detail="No projects found")
+
+        # Get all leads for this user, ordered newest first
+        stmt = (
+            select(Lead)
+            .where(Lead.email == user_email)
+            .order_by(Lead.created_at.desc())
+        )
+        result = await db.execute(stmt)
+        all_leads = result.scalars().all()
+
+        if not all_leads:
+            raise HTTPException(
+                status_code=404,
+                detail="No projects found. Start your first assessment at nexabuilder.com/get-quote/"
+            )
+
+        # Group by normalized address (postal_code + address_line1 or just postal_code)
+        # Key: postal_code|address_line1 or just postal_code if no address
+        from collections import defaultdict
+        address_groups = defaultdict(list)
+
+        for lead in all_leads:
+            addr_key = (lead.postal_code or "unknown") + "|" + (lead.address_line1 or "")
+            address_groups[addr_key].append(_lead_to_dict(lead))
+
+        # Build grouped response
+        properties = []
+        for addr_key, lead_list in address_groups.items():
+            parts = addr_key.split("|", 1)
+            postal = parts[0]
+            address = parts[1] if len(parts) > 1 and parts[1] else None
+
+            # Use most recent lead's city/state for the property
+            most_recent = lead_list[0]
+            properties.append({
+                "address_key": addr_key,
+                "address_line1": address or None,
+                "postal_code": postal,
+                "city": most_recent.get("city"),
+                "state": most_recent.get("state"),
+                "project_count": len(lead_list),
+                "projects": lead_list,
+            })
+
+        return {
+            "email": user_email,
+            "property_count": len(properties),
+            "total_projects": len(all_leads),
+            "properties": properties,
+        }
+
 @router.get("/{lead_id}")
 async def get_lead(
     lead_id: int,
