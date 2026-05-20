@@ -151,6 +151,44 @@ async def submit_lead(payload: LeadIntakeRequest):
         await db.commit()
         await db.refresh(lead)
 
+        # Auto-assign best contractor (non-blocking, fresh session)
+        try:
+            from app.routers.api.contractor_match import _match_query, _get_classifications
+            from sqlalchemy import text as _text
+            ai_data = lead.ai_assessment or {}
+            primary_cls, all_cls = _get_classifications(
+                lead.vertical or "", lead.project_type or "",
+                ai_data.get("license_types_needed", [])
+            )
+            async with SessionLocal() as assign_db:
+                # Resolve county from ZIP
+                county = ""
+                if lead.postal_code:
+                    r_c = await assign_db.execute(_text(
+                        "SELECT county FROM contractors WHERE zip_code = :z AND county IS NOT NULL LIMIT 1"
+                    ), {"z": lead.postal_code})
+                    c_row = r_c.fetchone()
+                    if c_row:
+                        county = c_row[0]
+
+                rows = await _match_query(
+                    assign_db, primary_cls, all_cls,
+                    lead.postal_code or "", county, lead.city or "", 1
+                )
+                if rows:
+                    best = rows[0]
+                    r_id = await assign_db.execute(_text(
+                        "SELECT id FROM contractors WHERE license_no = :lic LIMIT 1"
+                    ), {"lic": best[0]})
+                    c_id_row = r_id.fetchone()
+                    if c_id_row:
+                        await assign_db.execute(_text(
+                            "UPDATE leads SET contractor_id = :cid, lead_status = 'matched' WHERE id = :lid"
+                        ), {"cid": c_id_row[0], "lid": lead.id})
+                        await assign_db.commit()
+        except Exception as assign_err:
+            print(f"[AUTO-ASSIGN] Non-blocking error: {assign_err}")
+
         # Record property assessment (non-blocking, fresh session)
         try:
             async with SessionLocal() as rec_db:
