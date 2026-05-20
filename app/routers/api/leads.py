@@ -195,6 +195,41 @@ async def get_my_projects(
             "properties": properties,
         }
 
+
+
+@router.post("/{lead_id}/events")
+async def track_lead_event(
+    lead_id: int,
+    body: dict,
+    identity: dict = Depends(get_current_user),
+):
+    """
+    Track a click or conversion event for a lead.
+    Used for financing, insurance, and future network partner click tracking.
+    Stores event_type + arbitrary payload (publisher_id, etc.) in routing_events.
+
+    event_type examples:
+      financing_modal_opened  financing_interest_click  financing_lead_submitted
+      insurance_modal_opened  insurance_interest_click  insurance_lead_submitted
+      new_project_started     upgrade_selected
+    """
+    from app.models.routing_event import RoutingEvent
+
+    event_type  = body.get("event_type", "unknown")
+    payload     = body.get("payload", {})
+
+    SessionLocal = get_sessionmaker()
+    async with SessionLocal() as db:
+        event = RoutingEvent(
+            lead_id=lead_id,
+            event_type=event_type,
+            payload=payload,
+        )
+        db.add(event)
+        await db.commit()
+
+    return {"recorded": True, "event_type": event_type, "lead_id": lead_id}
+
 @router.get("/{lead_id}")
 async def get_lead(
     lead_id: int,
