@@ -47,3 +47,5 @@ passlib[bcrypt==4.0.1
 python-jose[cryptography]
 boto3
 anthropic
+
+twilio>=8.0.0
