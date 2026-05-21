@@ -119,3 +119,38 @@ def _classify_to_vertical(classifications: str) -> str:
     if "C-27" in cls: return "landscaping"
     if "B" in cls:    return "remodel"
     return "general"
+
+
+@router.get("/twilio/token")
+async def get_twilio_token(user: dict = Depends(get_current_user)):
+    """Generate a Twilio Voice access token for the softphone."""
+    from app.core.twilio_config import generate_twilio_token, get_twilio_config
+    
+    config = get_twilio_config()
+    if not config["configured"]:
+        return {
+            "token": None,
+            "configured": False,
+            "phone_number": config["phone_number"],
+            "message": "Twilio credentials not yet configured in SSM",
+        }
+    
+    identity = user.get("email", "agent")
+    token = await generate_twilio_token(identity)
+    return {
+        "token": token,
+        "configured": True,
+        "phone_number": config["phone_number"],
+        "identity": identity,
+    }
+
+@router.get("/twilio/config")
+async def get_twilio_status(user: dict = Depends(get_current_user)):
+    """Check Twilio configuration status."""
+    from app.core.twilio_config import get_twilio_config
+    config = get_twilio_config()
+    return {
+        "configured": config["configured"],
+        "phone_number": config["phone_number"],
+        "has_twiml_app": bool(config.get("twiml_app_sid")),
+    }
