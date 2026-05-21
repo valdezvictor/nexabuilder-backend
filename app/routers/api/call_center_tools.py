@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.auth import get_current_user
+from app.core.auth import get_current_user
 from app.db import get_sessionmaker
 from sqlalchemy import text
 
