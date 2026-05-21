@@ -19,6 +19,7 @@ from app.routers.api.ai import router as ai_router
 from app.routers.api.contractors import router as contractors_api_router
 from app.routers.api.leads import router as leads_router
 from app.routers.api.routing import router as routing_router
+from app.routers.api.call_center_tools import router as call_tools_router
 from app.routers.metrics import router as metrics_router
 from app.routers import auth
 from app.routers.api.magic_link import router as magic_link_router
