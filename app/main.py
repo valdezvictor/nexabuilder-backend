@@ -19,8 +19,6 @@ from app.routers.api.ai import router as ai_router
 from app.routers.api.contractors import router as contractors_api_router
 from app.routers.api.leads import router as leads_router
 from app.routers.api.routing import router as routing_router
-from app.routers.api.call_center_tools import router as call_tools_router
-from app.routers.api.chat import router as chat_router
 from app.routers.metrics import router as metrics_router
 from app.routers import auth
 from app.routers.api.magic_link import router as magic_link_router
@@ -112,6 +110,10 @@ application.include_router(routing_router)
 application.include_router(metrics_router)
 application.include_router(admin_metrics_router, prefix="/api")
 application.include_router(dashboard_router)
+from app.routers.api.call_center_tools import router as call_tools_router
+from app.routers.api.chat import router as chat_router
+application.include_router(call_tools_router, prefix="/api")
+application.include_router(chat_router, prefix="/api")
 application.include_router(content_router)
 application.include_router(verify_router)
 
@@ -154,6 +156,8 @@ async def metrics_data():
 @application.get("/")
 async def root():
     return {"message": "NexaBuilder API is running"}
+
+
 
 app = application
 
