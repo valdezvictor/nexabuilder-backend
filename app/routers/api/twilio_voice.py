@@ -76,66 +76,26 @@ async def twilio_voice_webhook(request: Request):
 # ── Voice access token — issued to browser softphone ─────────────────────────
 @router.get("/twilio/token")
 async def get_voice_token(user: dict = Depends(get_current_user)):
-    """
-    Generates a Twilio Voice access token for the browser softphone.
-    The token allows the browser to make and receive calls via WebRTC.
-    
-    Requires: Twilio account SID, API Key SID, API Key Secret, TwiML App SID
-    Note: For production, use API Keys (not auth token directly).
-    """
+    """Generate Twilio Voice access token for browser softphone."""
+    from app.core.twilio_config import generate_voice_token
+    identity = (user.get("email") or "agent").split("@")[0]
+    result = generate_voice_token(identity)
+    return result
+
+
+@router.get("/twilio/token/check")
+async def check_twilio_status():
+    """Public endpoint — check Twilio config without auth (for softphone init)."""
     from app.core.twilio_config import get_twilio_config
     config = get_twilio_config()
-    
-    if not config["configured"]:
-        return {
-            "token":        None,
-            "configured":   False,
-            "phone_number": config["phone_number"],
-            "message":      "Add Twilio credentials to SSM to enable live calling",
-        }
-    
-    identity = (user.get("email") or "agent").split("@")[0]
-    
-    try:
-        from twilio.jwt.access_token import AccessToken
-        from twilio.jwt.access_token.grants import VoiceGrant
-        
-        # AccessToken(account_sid, api_key_sid, api_key_secret, ...)
-        # Using auth_token as api_key_secret is OK for testing
-        # For production: create API Keys in Twilio console
-        token = AccessToken(
-            config["account_sid"],
-            config["account_sid"],    # api_key_sid — use account SID for now
-            config["auth_token"],     # api_key_secret
-            identity=identity,
-            ttl=3600
-        )
-        
-        grant = VoiceGrant(
-            outgoing_application_sid=config["twiml_app_sid"],
-            incoming_allow=True,
-        )
-        token.add_grant(grant)
-        jwt = token.to_jwt()
-        
-        return {
-            "token":        jwt if isinstance(jwt, str) else jwt.decode("utf-8"),
-            "configured":   True,
-            "phone_number": config["phone_number"],
-            "identity":     identity,
-            "twiml_app":    config["twiml_app_sid"],
-        }
-        
-    except Exception as e:
-        return {
-            "token":      None,
-            "configured": False,
-            "error":      str(e),
-            "message":    "Token generation failed — check Twilio credentials in SSM",
-        }
+    return {
+        "configured":   config["configured"],
+        "phone_number": config["phone_number"],
+        "has_app_sid":  bool(config.get("twiml_app_sid")),
+    }
 
 
-# ── Call status webhook — Twilio sends call events here ──────────────────────
+# DEAD endpoint — replaced by above
 @router.post("/twilio/voice/status")
 async def call_status(request: Request):
     """
