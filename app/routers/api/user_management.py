@@ -67,56 +67,55 @@ class UpdateUser(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 async def _send_invite(email: str, role: str, name: str, db) -> str:
-    """Create a magic link token and email the invite."""
+    """Create a magic link token and send invite email via SES."""
     from app.core.security import create_access_token
-    from datetime import timedelta
-    import urllib.request, urllib.parse, json
 
-    # Create magic link token (15 min)
-    token = create_access_token({"email": email, "type": "magic_link"}, expires_delta=timedelta(minutes=60))
+    # Use same signature as existing create_access_token(data, expires_minutes)
+    token = create_access_token(
+        {"email": email, "type": "magic_link"},
+        expires_minutes=1440  # 24 hours for invites
+    )
     portal_url = PORTAL_URLS.get(role, "https://member.nexabuilder.com/auth/verify")
     magic_link = f"{portal_url}?token={token}"
+    display_name = name or email.split("@")[0]
 
-    # Send via SES (simple)
+    PORTAL_LABELS = {
+        "admin":      "Admin Console",
+        "agent":      "Call Center",
+        "partner":    "Partner Portal",
+        "contractor": "Contractor Portal",
+        "lead":       "Member Portal",
+    }
+    portal_label = PORTAL_LABELS.get(role, "NexaBuilder Portal")
+
     try:
         import boto3
         ses = boto3.client("ses", region_name="us-east-1")
-        display_name = name or email.split("@")[0]
-        portal_label = {
-            "admin":      "Admin Console",
-            "agent":      "Call Center",
-            "partner":    "Partner Portal",
-            "contractor": "Contractor Portal",
-            "lead":       "Member Portal",
-        }.get(role, "NexaBuilder Portal")
-
         ses.send_email(
             Source="NexaBuilder <noreply@nexabuilder.com>",
             Destination={"ToAddresses": [email]},
             Message={
-                "Subject": {"Data": f"You\'re invited to NexaBuilder — {portal_label}"},
-                "Body": {"Html": {"Data": f"""
-<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
-  <img src="https://nexabuilder.com/images/logo.png" height="40" alt="NexaBuilder"/>
-  <h2 style="color:#0d1b2e;margin-top:24px">Welcome to NexaBuilder, {display_name}!</h2>
-  <p>You\'ve been added as a <strong>{role}</strong> on the NexaBuilder platform.</p>
-  <p>Click the button below to sign in to your {portal_label}:</p>
-  <a href="{magic_link}" style="display:inline-block;padding:12px 28px;background:#1d6fde;
-     color:#fff;text-decoration:none;border-radius:8px;font-weight:700;margin:16px 0">
-     Sign In →
-  </a>
-  <p style="font-size:12px;color:#64748b;margin-top:24px">
-    This link expires in 60 minutes. If you didn\'t expect this invitation, you can ignore it.
-  </p>
-</div>
-"""}},
+                "Subject": {"Data": f"You are invited to NexaBuilder — {portal_label}"},
+                "Body": {"Html": {"Data": (
+                    "<div style=\"font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px\">"
+                    "<h2 style=\"color:#0d1b2e;margin-top:24px\">Welcome to NexaBuilder!</h2>"
+                    f"<p>Hi {display_name}, you have been added as a <strong>{role}</strong>.</p>"
+                    f"<p>Click below to sign in to your {portal_label}:</p>"
+                    f"<a href=\"{magic_link}\" style=\"display:inline-block;padding:12px 28px;"
+                    "background:#1d6fde;color:#fff;text-decoration:none;border-radius:8px;"
+                    "font-weight:700;margin:16px 0\">Sign In to NexaBuilder &rarr;</a>"
+                    "<p style=\"font-size:12px;color:#64748b;margin-top:24px\">"
+                    "This link expires in 24 hours.</p>"
+                    "</div>"
+                )}},
             }
         )
-        print(f"[Invite] Sent to {email} ({role})")
-        return magic_link
+        print(f"[Invite] Email sent to {email} ({role})")
     except Exception as e:
-        print(f"[Invite] SES error: {e}")
-        return magic_link  # Return link even if email fails
+        print(f"[Invite] SES error for {email}: {e}")
+        # Still return the link so admin can copy it manually
+
+    return magic_link
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
