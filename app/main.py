@@ -111,9 +111,11 @@ application.include_router(metrics_router)
 application.include_router(admin_metrics_router, prefix="/api")
 application.include_router(dashboard_router)
 from app.routers.api.call_center_tools import router as call_tools_router
+from app.routers.api.user_management import router as user_mgmt_router
 from app.routers.api.twilio_voice import router as twilio_voice_router
 from app.routers.api.chat import router as chat_router
 application.include_router(call_tools_router, prefix="/api")
+application.include_router(user_mgmt_router, prefix="/api")
 application.include_router(twilio_voice_router, prefix="/api")
 application.include_router(chat_router, prefix="/api")
 application.include_router(content_router)
