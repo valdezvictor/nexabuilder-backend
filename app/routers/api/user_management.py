@@ -70,11 +70,22 @@ async def _send_invite(email: str, role: str, name: str, db) -> str:
     """Create a magic link token and send invite email via SES."""
     from app.core.security import create_access_token
 
-    # Use same signature as existing create_access_token(data, expires_minutes)
-    token = create_access_token(
-        {"email": email, "type": "magic_link"},
-        expires_minutes=1440  # 24 hours for invites
-    )
+    # Look up the user's UUID — the verify endpoint requires sub=user_id
+    r = await db.execute(text("SELECT id FROM users WHERE email = :e"), {"e": email})
+    row = r.fetchone()
+    if not row:
+        # Fallback — create token with email only (won't verify but link is still returnable)
+        print(f"[Invite] Warning: user {email} not found in DB when creating token")
+        token = create_access_token(
+            {"email": email, "type": "magic_link"},
+            expires_minutes=1440
+        )
+    else:
+        user_id = str(row[0])
+        token = create_access_token(
+            {"sub": user_id, "email": email, "type": "magic_link"},
+            expires_minutes=1440  # 24 hours for invites
+        )
     portal_url = PORTAL_URLS.get(role, "https://member.nexabuilder.com/auth/verify")
     magic_link = f"{portal_url}?token={token}"
     display_name = name or email.split("@")[0]
