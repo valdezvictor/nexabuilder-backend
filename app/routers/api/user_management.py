@@ -290,6 +290,8 @@ async def update_user(
             sets.append("phone = :phone"); params["phone"] = body.phone
         if body.notes is not None:
             sets.append("notes = :notes"); params["notes"] = body.notes
+        if hasattr(body, 'job_title') and body.job_title is not None:
+            sets.append("job_title = :job_title"); params["job_title"] = body.job_title
 
         if not sets:
             raise HTTPException(400, "No fields to update")
@@ -352,3 +354,123 @@ async def resend_invite(
         magic_link = await _send_invite(email, role, display_name, db2)
 
     return {"success": True, "email": email, "invite_sent": True, "magic_link": magic_link}
+
+
+# ── Job Titles & Permissions endpoints ────────────────────────────────────────
+
+@router.get("/admin/job-titles")
+async def list_job_titles(
+    department: Optional[str] = None,
+    admin: dict = Depends(require_admin)
+):
+    """Return all job titles, optionally filtered by department."""
+    S = get_sessionmaker()
+    async with S() as db:
+        where = "WHERE is_active = TRUE"
+        params = {}
+        if department:
+            where += " AND department = :dept"
+            params["dept"] = department
+        r = await db.execute(text(
+            f"SELECT id, title, department, base_role, extra_permissions, description "
+            f"FROM job_titles {where} ORDER BY department, title"
+        ), params)
+        rows = r.fetchall()
+
+    titles = []
+    for row in rows:
+        id_, title, dept, role, extras, desc = row
+        titles.append({
+            "id":          id_,
+            "title":       title,
+            "department":  dept,
+            "base_role":   role,
+            "extra_permissions": extras or [],
+            "description": desc,
+        })
+
+    # Group by department
+    by_dept: dict = {}
+    for t in titles:
+        by_dept.setdefault(t["department"], []).append(t)
+
+    return {"titles": titles, "by_department": by_dept, "total": len(titles)}
+
+
+@router.get("/admin/permissions")
+async def list_permissions(admin: dict = Depends(require_admin)):
+    """Return all permissions grouped by category."""
+    S = get_sessionmaker()
+    async with S() as db:
+        r = await db.execute(text(
+            "SELECT code, description FROM permissions ORDER BY code"
+        ))
+        rows = r.fetchall()
+
+        r2 = await db.execute(text(
+            "SELECT role, array_agg(permission_code ORDER BY permission_code) "
+            "FROM role_permissions GROUP BY role"
+        ))
+        role_rows = r2.fetchall()
+
+    perms = [{"code": row[0], "description": row[1],
+               "category": row[0].split(".")[0]} for row in rows]
+
+    # Group by category
+    by_cat: dict = {}
+    for p in perms:
+        by_cat.setdefault(p["category"], []).append(p)
+
+    role_perms = {row[0]: row[1] for row in role_rows}
+
+    return {
+        "permissions":    perms,
+        "by_category":    by_cat,
+        "role_permissions": role_perms,
+        "total":          len(perms),
+    }
+
+
+@router.get("/admin/users/{user_id}/permissions")
+async def get_user_permissions(
+    user_id: str,
+    admin: dict = Depends(require_admin)
+):
+    """Return the effective permissions for a specific user."""
+    S = get_sessionmaker()
+    async with S() as db:
+        r = await db.execute(text(
+            "SELECT role::text, job_title FROM users WHERE id = CAST(:id AS uuid)"
+        ), {"id": user_id})
+        row = r.fetchone()
+        if not row:
+            raise HTTPException(404, "User not found")
+        role, job_title = row[0], row[1] if len(row) > 1 else None
+
+        # Base role permissions
+        r2 = await db.execute(text(
+            "SELECT array_agg(permission_code) FROM role_permissions WHERE role = :role"
+        ), {"role": role})
+        base_perms = r2.scalar() or []
+
+        # Extra permissions from job title
+        extra_perms = []
+        if job_title:
+            r3 = await db.execute(text(
+                "SELECT extra_permissions FROM job_titles WHERE title = :title"
+            ), {"title": job_title})
+            jt_row = r3.fetchone()
+            if jt_row:
+                extra_perms = jt_row[0] or []
+
+        all_perms = list(set(base_perms + extra_perms))
+        all_perms.sort()
+
+    return {
+        "user_id":    user_id,
+        "role":       role,
+        "job_title":  job_title,
+        "base_permissions":  base_perms,
+        "extra_permissions": extra_perms,
+        "all_permissions":   all_perms,
+    }
