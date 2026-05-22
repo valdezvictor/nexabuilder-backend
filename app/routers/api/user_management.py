@@ -295,8 +295,9 @@ async def update_user(
             raise HTTPException(400, "No fields to update")
 
         sets.append("updated_at = NOW()")
+        set_clause = ", ".join(sets)
         await db.execute(text(
-            f"UPDATE users SET {\', \'.join(sets)} WHERE id = CAST(:id AS uuid)"
+            f"UPDATE users SET {set_clause} WHERE id = CAST(:id AS uuid)"
         ), params)
         await db.commit()
 
