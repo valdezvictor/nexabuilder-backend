@@ -37,10 +37,16 @@ async def twilio_voice_webhook(request: Request):
     # Outbound call — agent is calling a number
     if to and not to.startswith("client:") and to != twilio_number:
         # Agent is calling an external number (homeowner, contractor)
+        # Normalize the number — remove any non-digit chars except leading +
+        import re as _re
+        clean_to = '+' + _re.sub(r'\D', '', to) if not to.startswith('+') else to
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Dial callerId="{twilio_number}" timeout="30" record="record-from-ringing">
-        <Number>{to}</Number>
+    <Dial callerId="{twilio_number}" timeout="30" record="record-from-ringing"
+          action="https://api.nexabuilder.com/api/twilio/voice/status" method="POST">
+        <Number statusCallbackEvent="initiated ringing answered completed"
+                statusCallback="https://api.nexabuilder.com/api/twilio/voice/status"
+                statusCallbackMethod="POST">{clean_to}</Number>
     </Dial>
 </Response>"""
     
@@ -49,14 +55,19 @@ async def twilio_voice_webhook(request: Request):
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Joanna">
-        Thank you for calling NexaBuilder. Please hold while we connect you with a home improvement specialist.
+        Thank you for calling NexaBuilder, your home improvement specialists. Please hold for just a moment.
     </Say>
-    <Dial timeout="20" record="record-from-ringing">
-        <Client>agent</Client>
-        <Client>agent2</Client>
+    <Dial timeout="25" record="record-from-ringing" callerId="{twilio_number}"
+          action="{twilio_number}" method="POST">
+        <Client statusCallbackEvent="initiated ringing answered completed"
+                statusCallback="https://api.nexabuilder.com/api/twilio/voice/status">agent</Client>
+        <Client statusCallbackEvent="initiated ringing answered completed"
+                statusCallback="https://api.nexabuilder.com/api/twilio/voice/status">agent2</Client>
     </Dial>
     <Say voice="Polly.Joanna">
-        All agents are currently busy. Please call back or visit nexabuilder.com to submit a free project quote.
+        We apologize, all specialists are currently assisting other homeowners.
+        Please visit nexabuilder.com to submit your project online and receive a free quote, 
+        or call us back and we will connect you right away.
     </Say>
 </Response>"""
     
