@@ -58,7 +58,7 @@ async def twilio_voice_webhook(request: Request):
         Thank you for calling NexaBuilder, your home improvement specialists. Please hold for just a moment.
     </Say>
     <Dial timeout="25" record="record-from-ringing" callerId="{twilio_number}"
-          action="{twilio_number}" method="POST">
+          action="https://api.nexabuilder.com/api/twilio/voice/status" method="POST">
         <Client statusCallbackEvent="initiated ringing answered completed"
                 statusCallback="https://api.nexabuilder.com/api/twilio/voice/status">agent</Client>
         <Client statusCallbackEvent="initiated ringing answered completed"
