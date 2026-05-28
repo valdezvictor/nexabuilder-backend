@@ -27,13 +27,15 @@ router = APIRouter(prefix="/api/leads", tags=["Lead Intake"])
 
 
 class LeadIntakeRequest(BaseModel):
-    vertical:     str
-    project_type: Optional[str] = None
-    first_name:   Optional[str] = None
-    last_name:    Optional[str] = None
-    email:        Optional[str] = None
-    phone:        Optional[str] = None
-    postal_code:  Optional[str] = None
+    vertical:          str
+    project_type:      Optional[str]   = None
+    first_name:        Optional[str]   = None
+    last_name:         Optional[str]   = None
+    email:             Optional[str]   = None
+    phone:             Optional[str]   = None
+    postal_code:       Optional[str]   = None
+    needs_financing:   Optional[bool]  = False
+    financing_amount:  Optional[float] = None
     description:  Optional[str] = None
     source:       Optional[str] = "web_form"  # web_form, call_center_inbound, call_center_outbound, tv_ad, radio_ad, referral
 
@@ -269,6 +271,41 @@ async def submit_lead(payload: LeadIntakeRequest):
             if not phone.startswith("+"):
                 phone = "+1" + phone
             send_magic_link_sms(phone, token_url)
+
+        # Auto-route to Raul Cruz if financing requested
+        if req.needs_financing:
+            try:
+                from sqlalchemy import text as _text
+                # Get Raul's lending partner record
+                lp = await db.execute(_text(
+                    "SELECT id, name, email FROM lending_partners WHERE is_primary = TRUE AND is_active = TRUE LIMIT 1"
+                ))
+                lp_row = lp.fetchone()
+                if lp_row:
+                    # Create lending application record
+                    await db.execute(_text("""
+                        INSERT INTO lending_applications
+                            (lead_id, lender_name, status, loan_type,
+                             requested_amount, applicant_email, applicant_phone, notes)
+                        VALUES
+                            (:lead_id, :lender_name, 'pending', :loan_type,
+                             :amount, :email, :phone, :notes)
+                    """), {
+                        "lead_id":     lead.id,
+                        "lender_name": lp_row[1],
+                        "loan_type":   req.vertical,
+                        "amount":      req.financing_amount,
+                        "email":       req.email,
+                        "phone":       req.phone,
+                        "notes":       f"Auto-routed from intake. Vertical: {req.vertical}",
+                    })
+                    # Update lead with lender reference
+                    await db.execute(_text(
+                        "UPDATE leads SET needs_financing=TRUE, lender_ref=:ref, financing_amount=:amt WHERE id=:id"
+                    ), {"ref": lp_row[1], "amt": req.financing_amount, "id": lead.id})
+                    await db.commit()
+            except Exception as fin_err:
+                print(f"[Financing routing] non-fatal error: {fin_err}")
 
         return {
             "id":       lead.id,
