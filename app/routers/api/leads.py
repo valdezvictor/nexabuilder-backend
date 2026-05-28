@@ -620,7 +620,7 @@ async def update_lead_profile_member(
     if not sets:
         return {"success": True, "message": "Nothing to update"}
 
-    sets.append("updated_at = NOW()")
+    # Note: leads table does not have updated_at column
     set_clause = ", ".join(sets)
 
     S = get_sessionmaker()
