@@ -484,3 +484,85 @@ async def get_user_permissions(
         "extra_permissions": extra_perms,
         "all_permissions":   all_perms,
     }
+
+
+# ── Lead profile update endpoint ──────────────────────────────────────────────
+from pydantic import BaseModel as _BaseModel
+from typing import Optional as _Optional
+
+class LeadProfileUpdate(_BaseModel):
+    first_name:   _Optional[str] = None
+    last_name:    _Optional[str] = None
+    phone:        _Optional[str] = None
+    email:        _Optional[str] = None
+    address_line1: _Optional[str] = None
+    city:         _Optional[str] = None
+    state:        _Optional[str] = None
+    postal_code:  _Optional[str] = None
+    budget:       _Optional[str] = None
+    timeline:     _Optional[str] = None
+    project_description: _Optional[str] = None
+
+@router.patch("/admin/leads/{lead_id}/profile")
+async def update_lead_profile(
+    lead_id: int,
+    body: LeadProfileUpdate,
+    admin: dict = Depends(require_admin)
+):
+    """Update lead contact info and address. Used by admin to fix missing data."""
+    S = get_sessionmaker()
+    async with S() as db:
+        sets, params = [], {"id": lead_id}
+        field_map = {
+            "first_name": "first_name", "last_name": "last_name",
+            "phone": "phone", "email": "email",
+            "address_line1": "address_line1", "city": "city",
+            "state": "state", "postal_code": "postal_code",
+            "budget": "budget", "timeline": "timeline",
+            "project_description": "project_description",
+        }
+        for field, col in field_map.items():
+            val = getattr(body, field, None)
+            if val is not None:
+                sets.append(f"{col} = :{field}")
+                params[field] = val
+
+        if not sets:
+            raise HTTPException(400, "No fields to update")
+
+        sets.append("updated_at = NOW()")
+        set_clause = ", ".join(sets)
+        await db.execute(text(
+            f"UPDATE leads SET {set_clause} WHERE id = :id"
+        ), params)
+        await db.commit()
+
+    return {"success": True, "lead_id": lead_id}
+
+
+@router.get("/admin/leads/{lead_id}")
+async def get_lead_detail(
+    lead_id: int,
+    admin: dict = Depends(require_admin)
+):
+    """Get full lead details for admin editing."""
+    S = get_sessionmaker()
+    async with S() as db:
+        r = await db.execute(text(
+            "SELECT id, email, first_name, last_name, phone, "
+            "address_line1, city, state, postal_code, vertical, "
+            "budget, timeline, project_description, status, "
+            "needs_financing, project_sqft, estimated_cost_low, estimated_cost_high, "
+            "created_at "
+            "FROM leads WHERE id = :id"
+        ), {"id": lead_id})
+        row = r.fetchone()
+        if not row:
+            raise HTTPException(404, "Lead not found")
+
+        cols = ["id","email","first_name","last_name","phone",
+                "address_line1","city","state","postal_code","vertical",
+                "budget","timeline","project_description","status",
+                "needs_financing","project_sqft","estimated_cost_low","estimated_cost_high",
+                "created_at"]
+        return dict(zip(cols, [str(v) if v is not None else None for v in row]))
