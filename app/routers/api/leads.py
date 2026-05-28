@@ -594,3 +594,35 @@ async def update_lead_status(
         await db.commit()
         return {"lead_id": lead_id, "old_status": old_status, "new_status": status,
                 "status_label": STATUS_LABELS.get(status, status)}
+
+
+@router.patch("/leads/{lead_id}/profile")
+async def update_lead_profile_member(
+    lead_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Allow a logged-in homeowner to update their own lead profile.
+    Used by the member portal ProfileModal.
+    """
+    from sqlalchemy import text as _text
+    body = await request.json()
+
+    allowed = ["first_name","last_name","phone","address_line1",
+               "city","state","postal_code","budget","timeline","project_description"]
+
+    sets, params = [], {"id": lead_id}
+    for field in allowed:
+        if field in body and body[field] is not None:
+            sets.append(f"{field} = :{field}")
+            params[field] = body[field]
+
+    if not sets:
+        return {"success": True, "message": "Nothing to update"}
+
+    sets.append("updated_at = NOW()")
+    set_clause = ", ".join(sets)
+    await db.execute(_text(f"UPDATE leads SET {set_clause} WHERE id = :id"), params)
+    await db.commit()
+    return {"success": True, "lead_id": lead_id}
