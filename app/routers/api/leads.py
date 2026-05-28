@@ -596,7 +596,7 @@ async def update_lead_status(
                 "status_label": STATUS_LABELS.get(status, status)}
 
 
-@router.patch("/leads/{lead_id}/profile")
+@router.patch("/{lead_id}/profile")
 async def update_lead_profile_member(
     lead_id: int,
     request: Request,
