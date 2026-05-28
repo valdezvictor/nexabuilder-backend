@@ -1,6 +1,6 @@
 # app/routers/api/leads.py
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, update
 from pydantic import BaseModel
 
@@ -600,7 +600,6 @@ async def update_lead_status(
 async def update_lead_profile_member(
     lead_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
 ):
     """
     Allow a logged-in homeowner to update their own lead profile.
@@ -623,6 +622,10 @@ async def update_lead_profile_member(
 
     sets.append("updated_at = NOW()")
     set_clause = ", ".join(sets)
-    await db.execute(_text(f"UPDATE leads SET {set_clause} WHERE id = :id"), params)
-    await db.commit()
+
+    S = get_sessionmaker()
+    async with S() as db:
+        await db.execute(_text(f"UPDATE leads SET {set_clause} WHERE id = :id"), params)
+        await db.commit()
+
     return {"success": True, "lead_id": lead_id}
