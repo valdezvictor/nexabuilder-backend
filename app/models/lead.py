@@ -43,6 +43,28 @@ class Lead(Base):
     project_description = mapped_column(String(2000), nullable=True)
     source = mapped_column(String(50), nullable=True)    # web_form, tv_ad, radio_ad, etc
 
+    # ── Attribution / tracking (added 2026-05-29) ─────────────────────────
+    site_id          = Column(String(64),  nullable=True)
+    source_domain    = Column(String(255), nullable=True)
+    referrer_url     = Column(Text,        nullable=True)
+    landing_page     = Column(Text,        nullable=True)
+    utm_source       = Column(String(128), nullable=True)
+    utm_medium       = Column(String(128), nullable=True)
+    utm_campaign     = Column(String(255), nullable=True)
+    utm_content      = Column(String(255), nullable=True)
+    utm_term         = Column(String(255), nullable=True)
+    affiliate_id     = Column(String(128), nullable=True)
+    sub_id           = Column(String(255), nullable=True)
+    click_id         = Column(String(255), nullable=True)
+    # ── Consent ────────────────────────────────────────────────────────────
+    tcpa_consent     = Column(Boolean,     nullable=True, default=False)
+    tcpa_timestamp   = Column(String(50),  nullable=True)
+    tcpa_text        = Column(Text,        nullable=True)
+    newsletter_optin = Column(Boolean,     nullable=True, default=False)
+    language         = Column(String(8),   nullable=True, default='en')
+    budget           = Column(String(64),  nullable=True)
+    timeline         = Column(String(64),  nullable=True)
+
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     contractor = relationship("Contractor", back_populates="leads")
