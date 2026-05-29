@@ -36,8 +36,27 @@ class LeadIntakeRequest(BaseModel):
     postal_code:       Optional[str]   = None
     needs_financing:   Optional[bool]  = False
     financing_amount:  Optional[float] = None
-    description:  Optional[str] = None
-    source:       Optional[str] = "web_form"  # web_form, call_center_inbound, call_center_outbound, tv_ad, radio_ad, referral
+    description:       Optional[str]  = None
+    source:            Optional[str]  = "web_form"
+    # ── Attribution / tracking fields ────────────────────────────────────
+    site_id:           Optional[str]  = None   # internal site identifier (e.g. "unapiscina", "improvementwizards")
+    source_domain:     Optional[str]  = None   # full domain of originating site
+    referrer_url:      Optional[str]  = None   # HTTP referrer at form load
+    landing_page:      Optional[str]  = None   # specific page/path visitor landed on
+    utm_source:        Optional[str]  = None   # google / facebook / newsletter / organic
+    utm_medium:        Optional[str]  = None   # cpc / email / social / referral
+    utm_campaign:      Optional[str]  = None   # campaign name
+    utm_content:       Optional[str]  = None   # ad variant / creative ID
+    utm_term:          Optional[str]  = None   # search keyword
+    affiliate_id:      Optional[str]  = None   # affiliate partner ID
+    sub_id:            Optional[str]  = None   # affiliate sub-ID (for their tracking)
+    click_id:          Optional[str]  = None   # gclid / fbclid / network click ID
+    # ── Consent fields ────────────────────────────────────────────────────
+    tcpa_consent:      Optional[bool] = False
+    tcpa_timestamp:    Optional[str]  = None   # ISO timestamp of consent
+    tcpa_text:         Optional[str]  = None   # exact consent language shown
+    newsletter_optin:  Optional[bool] = False
+    language:          Optional[str]  = "en"
 
 
 def _create_access_token(user_id: str, tenant_id: str) -> str:
@@ -70,6 +89,7 @@ async def submit_lead(payload: LeadIntakeRequest):
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         # Create the lead record
+        import datetime as _dt
         lead = Lead(
             vertical=payload.vertical,
             project_type=payload.project_type,
@@ -80,6 +100,23 @@ async def submit_lead(payload: LeadIntakeRequest):
             email=payload.email,
             phone=payload.phone,
             postal_code=payload.postal_code,
+            # Attribution / tracking
+            site_id=payload.site_id,
+            source_domain=payload.source_domain,
+            referrer_url=payload.referrer_url,
+            landing_page=payload.landing_page,
+            utm_source=payload.utm_source,
+            utm_medium=payload.utm_medium,
+            utm_campaign=payload.utm_campaign,
+            utm_content=payload.utm_content,
+            utm_term=payload.utm_term,
+            affiliate_id=payload.affiliate_id,
+            sub_id=payload.sub_id,
+            click_id=payload.click_id,
+            # Consent
+            tcpa_consent=payload.tcpa_consent or False,
+            newsletter_optin=payload.newsletter_optin or False,
+            language=payload.language or "en",
         )
         db.add(lead)
         await db.flush()
