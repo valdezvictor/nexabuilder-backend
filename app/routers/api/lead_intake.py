@@ -90,7 +90,6 @@ async def submit_lead(payload: LeadIntakeRequest):
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
         # Create the lead record
-        import datetime as _dt
         lead = Lead(
             vertical=payload.vertical,
             project_type=payload.project_type,
@@ -311,7 +310,7 @@ async def submit_lead(payload: LeadIntakeRequest):
             send_magic_link_sms(phone, token_url)
 
         # Auto-route to Raul Cruz if financing requested
-        if req.needs_financing:
+        if payload.needs_financing:
             try:
                 from sqlalchemy import text as _text
                 # Get Raul's lending partner record
@@ -331,16 +330,16 @@ async def submit_lead(payload: LeadIntakeRequest):
                     """), {
                         "lead_id":     lead.id,
                         "lender_name": lp_row[1],
-                        "loan_type":   req.vertical,
-                        "amount":      req.financing_amount,
-                        "email":       req.email,
-                        "phone":       req.phone,
-                        "notes":       f"Auto-routed from intake. Vertical: {req.vertical}",
+                        "loan_type":   payload.vertical,
+                        "amount":      payload.financing_amount,
+                        "email":       payload.email,
+                        "phone":       payload.phone,
+                        "notes":       f"Auto-routed from intake. Vertical: {payload.vertical}",
                     })
                     # Update lead with lender reference
                     await db.execute(_text(
                         "UPDATE leads SET needs_financing=TRUE, lender_ref=:ref, financing_amount=:amt WHERE id=:id"
-                    ), {"ref": lp_row[1], "amt": req.financing_amount, "id": lead.id})
+                    ), {"ref": lp_row[1], "amt": payload.financing_amount, "id": lead.id})
                     await db.commit()
             except Exception as fin_err:
                 print(f"[Financing routing] non-fatal error: {fin_err}")
