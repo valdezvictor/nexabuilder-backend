@@ -17,8 +17,24 @@ def _get_key():
         return None
 
 LIST_ROUTING = {
-    ("unapiscina.com","es"): "QZ8Vhy",
-    ("unapiscina.com","en"): "SMyNN3",
+    # unapiscina.com
+    ("unapiscina.com","es"):            "QZ8Vhy",
+    ("unapiscina.com","en"):            "SMyNN3",
+    # renovationremodel.com
+    ("renovationremodel.com","en"):     "VwGWv2",
+    ("renovationremodel.com","es"):     "VwGWv2",
+    # iquotesai.com verticals
+    ("iquotesai.com/construction","en"): "WG7MnS",
+    ("iquotesai.com/insurance","en"):    "W56JLf",
+    ("iquotesai.com/loans","en"):        "Vs5G9C",
+    ("iquotesai.com/solar","en"):        "VYtuqR",
+    ("iquotesai.com/education","en"):    "WwRgG6",
+    # iquotesai site_id based routing
+    ("iquotesai-construction","en"):     "WG7MnS",
+    ("iquotesai-insurance","en"):        "W56JLf",
+    ("iquotesai-loans","en"):            "Vs5G9C",
+    ("iquotesai-solar","en"):            "VYtuqR",
+    ("iquotesai-education","en"):        "WwRgG6",
 }
 LIST_ALL             = "TqzRqE"
 LIST_LEADS_OPEN      = "WnqzNZ"
