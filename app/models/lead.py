@@ -1,6 +1,6 @@
 # app/models/lead.py
 
-from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, func, Boolean
+from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, func, Boolean, Text
 from sqlalchemy.orm import mapped_column, relationship
 from app.db import Base
 
