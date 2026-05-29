@@ -1,3 +1,4 @@
+from app.services.klaviyo import klaviyo_sync_lead
 # app/routers/api/lead_intake.py
 from fastapi import APIRouter
 from pydantic import BaseModel
