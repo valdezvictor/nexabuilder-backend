@@ -207,6 +207,11 @@ async def submit_lead(payload: LeadIntakeRequest):
         await db.commit()
         await db.refresh(lead)
 
+        # Sync to Klaviyo in thread pool (non-blocking)
+        import asyncio as _asyncio
+        _asyncio.get_event_loop().run_in_executor(None, klaviyo_sync_lead, lead)
+
+
         # Apply demo flags if needed (after commit to avoid transaction conflict)
         if getattr(lead, '_demo_email', False):
             async with SessionLocal() as demo_db:
