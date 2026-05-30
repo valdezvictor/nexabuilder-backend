@@ -121,7 +121,7 @@ application.include_router(twilio_voice_router, prefix="/api")
 application.include_router(chat_router, prefix="/api")
 application.include_router(content_router)
 application.include_router(verify_router)
-app.include_router(blog_router)
+application.include_router(blog_router)
 
 # ── Prometheus instrumentation ───────────────────────────────────────────────
 Instrumentator().instrument(application).expose(application)
