@@ -76,120 +76,8 @@ def _auto_canonical(article: BlogArticle) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PUBLIC ENDPOINTS
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@router.get(
-    "/{site_id}",
-    response_model=ArticleList,
-    summary="List published articles for a site"
-)
-async def list_published_articles(
-    site_id: str,
-    language: Optional[str] = Query(default=None),
-    category: Optional[str] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    per_page: int = Query(default=10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Returns published articles for a site, newest first.
-    Used by blog index pages and article cards.
-    """
-    q = select(BlogArticle).where(
-        BlogArticle.site_id == site_id,
-        BlogArticle.status == ArticleStatus.published,
-    )
-    if language:
-        q = q.where(BlogArticle.language == language)
-    if category:
-        q = q.where(BlogArticle.category == category)
-
-    # Total count
-    count_q = select(func.count()).select_from(q.subquery())
-    total = (await db.execute(count_q)).scalar() or 0
-
-    # Paginated results
-    q = q.order_by(BlogArticle.published_at.desc())
-    q = q.offset((page - 1) * per_page).limit(per_page)
-    rows = (await db.execute(q)).scalars().all()
-
-    return {
-        "articles": rows,
-        "total":    total,
-        "page":     page,
-        "per_page": per_page,
-        "pages":    max(1, -(-total // per_page)),  # ceiling division
-    }
-
-
-@router.get(
-    "/{site_id}/category/{category}",
-    response_model=ArticleList,
-    summary="List published articles by category"
-)
-async def list_by_category(
-    site_id: str,
-    category: str,
-    language: Optional[str] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    per_page: int = Query(default=10, ge=1, le=50),
-    db: AsyncSession = Depends(get_db),
-):
-    q = select(BlogArticle).where(
-        BlogArticle.site_id == site_id,
-        BlogArticle.status == ArticleStatus.published,
-        BlogArticle.category == category,
-    )
-    if language:
-        q = q.where(BlogArticle.language == language)
-
-    count_q = select(func.count()).select_from(q.subquery())
-    total = (await db.execute(count_q)).scalar() or 0
-
-    q = q.order_by(BlogArticle.published_at.desc())
-    q = q.offset((page - 1) * per_page).limit(per_page)
-    rows = (await db.execute(q)).scalars().all()
-
-    return {
-        "articles": rows, "total": total,
-        "page": page, "per_page": per_page,
-        "pages": max(1, -(-total // per_page)),
-    }
-
-
-@router.get(
-    "/{site_id}/{slug}",
-    response_model=ArticlePublic,
-    summary="Get a published article by slug"
-)
-async def get_article_public(
-    site_id: str,
-    slug:    str,
-    language: str = Query(default="es"),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Returns a single published article by (site_id, slug, language).
-    Used by individual blog article pages at /blog/{slug}/
-    Returns 404 if not found or not published.
-    """
-    result = await db.execute(
-        select(BlogArticle).where(
-            BlogArticle.site_id  == site_id,
-            BlogArticle.slug     == slug,
-            BlogArticle.language == language,
-            BlogArticle.status   == ArticleStatus.published,
-        )
-    )
-    article = result.scalars().first()
-    if not article:
-        raise HTTPException(status_code=404, detail="Article not found or not published")
-    return article
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # ADMIN ENDPOINTS
+
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post(
@@ -413,3 +301,118 @@ async def archive_article(
     article.status = ArticleStatus.archived
     await db.commit()
     return {"id": article_id, "status": "archived"}
+
+# PUBLIC ENDPOINTS
+
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get(
+    "/{site_id}",
+    response_model=ArticleList,
+    summary="List published articles for a site"
+)
+async def list_published_articles(
+    site_id: str,
+    language: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns published articles for a site, newest first.
+    Used by blog index pages and article cards.
+    """
+    q = select(BlogArticle).where(
+        BlogArticle.site_id == site_id,
+        BlogArticle.status == ArticleStatus.published,
+    )
+    if language:
+        q = q.where(BlogArticle.language == language)
+    if category:
+        q = q.where(BlogArticle.category == category)
+
+    # Total count
+    count_q = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    # Paginated results
+    q = q.order_by(BlogArticle.published_at.desc())
+    q = q.offset((page - 1) * per_page).limit(per_page)
+    rows = (await db.execute(q)).scalars().all()
+
+    return {
+        "articles": rows,
+        "total":    total,
+        "page":     page,
+        "per_page": per_page,
+        "pages":    max(1, -(-total // per_page)),  # ceiling division
+    }
+
+
+@router.get(
+    "/{site_id}/category/{category}",
+    response_model=ArticleList,
+    summary="List published articles by category"
+)
+async def list_by_category(
+    site_id: str,
+    category: str,
+    language: Optional[str] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(BlogArticle).where(
+        BlogArticle.site_id == site_id,
+        BlogArticle.status == ArticleStatus.published,
+        BlogArticle.category == category,
+    )
+    if language:
+        q = q.where(BlogArticle.language == language)
+
+    count_q = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    q = q.order_by(BlogArticle.published_at.desc())
+    q = q.offset((page - 1) * per_page).limit(per_page)
+    rows = (await db.execute(q)).scalars().all()
+
+    return {
+        "articles": rows, "total": total,
+        "page": page, "per_page": per_page,
+        "pages": max(1, -(-total // per_page)),
+    }
+
+
+@router.get(
+    "/{site_id}/{slug}",
+    response_model=ArticlePublic,
+    summary="Get a published article by slug"
+)
+async def get_article_public(
+    site_id: str,
+    slug:    str,
+    language: str = Query(default="es"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Returns a single published article by (site_id, slug, language).
+    Used by individual blog article pages at /blog/{slug}/
+    Returns 404 if not found or not published.
+    """
+    result = await db.execute(
+        select(BlogArticle).where(
+            BlogArticle.site_id  == site_id,
+            BlogArticle.slug     == slug,
+            BlogArticle.language == language,
+            BlogArticle.status   == ArticleStatus.published,
+        )
+    )
+    article = result.scalars().first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found or not published")
+    return article
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
