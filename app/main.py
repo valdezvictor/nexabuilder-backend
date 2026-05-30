@@ -28,6 +28,7 @@ from app.routers.api.documents import router as documents_router
 from app.routers.api.contractor_matching import router as contractor_matching_router
 from app.routers.api.contractor_match import router as contractor_match_router
 from app.routers.api.lead_intake import router as lead_intake_router
+from app.routers.api.blog import router as blog_router
 from app.routers.api.magic_link import router as magic_link_router
 from app.routers.api.estimate import router as estimate_router
 from app.routers.api.service_providers import router as service_provider_router, job_router as service_job_router

@@ -18,3 +18,5 @@ __all__ = [
     "ZipCode",
     "EnrichmentJob",
 ]
+
+from app.models.blog_article import BlogArticle, ArticleStatus
