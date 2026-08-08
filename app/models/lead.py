@@ -1,6 +1,6 @@
 # app/models/lead.py
 
-from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, ForeignKey, func, Boolean, Text
+from sqlalchemy import Column, SmallInteger, Numeric, Integer, String, Float, JSON, DateTime, ForeignKey, func, Boolean, Text
 from sqlalchemy.orm import mapped_column, relationship
 from app.db import Base
 
@@ -78,3 +78,37 @@ class Lead(Base):
     assigned_at = mapped_column(DateTime(timezone=True), nullable=True)
     status_updated_at = mapped_column(DateTime(timezone=True), nullable=True)
     internal_notes = Column(String(2000), nullable=True)
+
+    # ── Attribution / tracking columns (added 2026-07) ─────────────────────
+    nexa_cid         = Column(String(255), nullable=True, index=True)
+    session_id       = Column(String(36), nullable=True)   # UUID stored as string
+    fbclid           = Column(String(255), nullable=True)
+    gclid            = Column(String(255), nullable=True)
+    ttclid           = Column(String(255), nullable=True)
+    device_type      = Column(String(30),  nullable=True)
+    first_touch_at   = Column(DateTime(timezone=True), nullable=True)
+    is_attributed    = Column(Boolean, nullable=True, default=False)
+    source_domain    = Column(String(255), nullable=True)
+    language         = Column(String(10),  nullable=True, default='en')
+
+    # ── Financing / Pre-Qualification (added 2026-07) ─────────────────────
+    needs_financing      = Column(Boolean,     nullable=True, default=False)
+    financing_amount     = Column(Numeric(12,2), nullable=True)
+    financing_type       = Column(String(30),  nullable=True)
+    pre_qual_score       = Column(SmallInteger, nullable=True)
+    pre_qual_status      = Column(String(20),  nullable=True, default='not_requested')
+    ping_tree_eligible   = Column(Boolean,     nullable=True, default=False)
+    ping_tree_routed_at  = Column(DateTime(timezone=True), nullable=True)
+    annual_income        = Column(Numeric(12,2), nullable=True)
+    employment_status    = Column(String(30),  nullable=True)
+    years_at_address     = Column(SmallInteger, nullable=True)
+    ownership_tenure     = Column(String(20),  nullable=True)
+    co_borrower          = Column(Boolean,     nullable=True, default=False)
+    ssn_last_four        = Column(String(4),   nullable=True)
+    property_address     = Column(Text,        nullable=True)
+    property_type        = Column(String(30),  nullable=True)
+    property_year_built  = Column(SmallInteger, nullable=True)
+    down_payment_available = Column(Numeric(12,2), nullable=True)
+    stated_mortgage_balance = Column(Numeric(14,2), nullable=True)
+    lender_ref           = Column(String(100), nullable=True)
+    project_budget       = Column(Numeric(12,2), nullable=True)

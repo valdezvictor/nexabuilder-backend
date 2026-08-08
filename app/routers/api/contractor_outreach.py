@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/outreach", tags=["Contractor Outreach"])
 
 @router.get("/contractors/search")
 async def search_contractors_for_outreach(
+    q:              Optional[str] = None,
     vertical:       Optional[str] = None,
     classification: Optional[str] = None,
     zip_code:       Optional[str] = None,
@@ -50,13 +51,17 @@ async def search_contractors_for_outreach(
 
     cls = classification or (CLASS_MAP.get((vertical or "").lower()) if vertical else None)
 
-    conditions = ["c.primary_status = 'CLEAR'",
-                  "(c.expiration_date IS NULL OR c.expiration_date > NOW())"]
+    conditions = ["c.primary_status = 'CLEAR'"]
     params: dict = {"limit": limit, "offset": offset}
 
+    if q:
+        p = "%" + q.strip().upper() + "%"
+        conditions.append("(UPPER(c.business_name) ILIKE :q OR UPPER(c.full_business_name) ILIKE :q OR c.license_no ILIKE :q_raw OR UPPER(c.phone) ILIKE :q_raw OR UPPER(c.email) ILIKE :q)")
+        params["q"] = p
+        params["q_raw"] = "%" + q.strip() + "%"
     if cls:
         conditions.append("c.classifications ILIKE :cls")
-        params["cls"] = f"%{cls}%"
+        params["cls"] = "%" + cls.replace("-", "") + "%"
     if zip_code:
         conditions.append("c.zip_code = :zip"); params["zip"] = zip_code
     if city:

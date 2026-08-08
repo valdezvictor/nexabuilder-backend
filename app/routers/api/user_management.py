@@ -553,7 +553,11 @@ async def get_lead_detail(
             "address_line1, city, state, postal_code, vertical, "
             "budget, timeline, project_description, status, "
             "needs_financing, project_sqft, estimated_cost_low, estimated_cost_high, "
-            "created_at "
+            "created_at, pre_qual_score, pre_qual_status, "
+            "financing_amount, financing_type, annual_income, "
+            "employment_status, ownership_tenure, years_at_address, "
+            "property_address, property_type, co_borrower, "
+            "stated_mortgage_balance, lender_ref, project_budget "
             "FROM leads WHERE id = :id"
         ), {"id": lead_id})
         row = r.fetchone()
@@ -564,5 +568,9 @@ async def get_lead_detail(
                 "address_line1","city","state","postal_code","vertical",
                 "budget","timeline","project_description","status",
                 "needs_financing","project_sqft","estimated_cost_low","estimated_cost_high",
-                "created_at"]
+                "created_at","pre_qual_score","pre_qual_status",
+                "financing_amount","financing_type","annual_income",
+                "employment_status","ownership_tenure","years_at_address",
+                "property_address","property_type","co_borrower",
+                "stated_mortgage_balance","lender_ref","project_budget"]
         return dict(zip(cols, [str(v) if v is not None else None for v in row]))

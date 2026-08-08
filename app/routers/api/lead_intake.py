@@ -52,12 +52,30 @@ class LeadIntakeRequest(BaseModel):
     affiliate_id:      Optional[str]  = None   # affiliate partner ID
     sub_id:            Optional[str]  = None   # affiliate sub-ID (for their tracking)
     click_id:          Optional[str]  = None   # gclid / fbclid / network click ID
+    nexa_cid:          Optional[str]  = None   # NexaBuilder first-party click ID
+    session_id:        Optional[str]  = None   # attribution_sessions UUID
+    fbclid:            Optional[str]  = None
+    gclid:             Optional[str]  = None
+    ttclid:            Optional[str]  = None
     # ── Consent fields ────────────────────────────────────────────────────
     tcpa_consent:      Optional[bool] = False
     tcpa_timestamp:    Optional[str]  = None   # ISO timestamp of consent
     tcpa_text:         Optional[str]  = None   # exact consent language shown
     newsletter_optin:  Optional[bool] = False
     language:          Optional[str]  = "en"
+    # ── Financing fields (Phase 4) ────────────────────────────────────────
+    financing_type:         Optional[str]   = None   # heloc|home_improvement|pool_loan|personal
+    annual_income:          Optional[float] = None
+    employment_status:      Optional[str]   = "employed"
+    years_at_address:       Optional[int]   = None
+    ownership_tenure:       Optional[str]   = "own_with_mortgage"
+    stated_mortgage_balance: Optional[float] = None
+    stated_monthly_debts:   Optional[float] = None
+    co_borrower:            Optional[bool]  = False
+    property_address:       Optional[str]   = None
+    property_type:          Optional[str]   = "single_family"
+    down_payment_available: Optional[float] = None
+    project_budget:         Optional[float] = None
 
 
 def _create_access_token(user_id: str, tenant_id: str) -> str:
@@ -101,18 +119,23 @@ async def submit_lead(payload: LeadIntakeRequest):
             phone=payload.phone,
             postal_code=payload.postal_code,
             # Attribution / tracking
-            site_id=payload.site_id,
+            
             source_domain=payload.source_domain,
-            referrer_url=payload.referrer_url,
-            landing_page=payload.landing_page,
+            
+            
             utm_source=payload.utm_source,
             utm_medium=payload.utm_medium,
             utm_campaign=payload.utm_campaign,
             utm_content=payload.utm_content,
             utm_term=payload.utm_term,
-            affiliate_id=payload.affiliate_id,
-            sub_id=payload.sub_id,
-            click_id=payload.click_id,
+            nexa_cid=getattr(payload, 'nexa_cid', None),
+            session_id=str(getattr(payload, 'session_id', '') or ''),
+            fbclid=getattr(payload, 'fbclid', None),
+            gclid=getattr(payload, 'gclid', None),
+            ttclid=getattr(payload, 'ttclid', None),
+            
+            
+            
             # Consent
             tcpa_consent=payload.tcpa_consent or False,
             newsletter_optin=payload.newsletter_optin or False,
@@ -120,6 +143,42 @@ async def submit_lead(payload: LeadIntakeRequest):
         )
         db.add(lead)
         await db.flush()
+
+        # ── Attribution hook — link nexa_cid to this lead ──────────────────
+        try:
+            nexa_cid_val = getattr(payload, 'nexa_cid', None) or ''
+            if nexa_cid_val and len(nexa_cid_val) > 5:
+                import uuid as _uuid
+                from sqlalchemy import text as _sqlt
+                # Link session to lead
+                await db.execute(_sqlt("""
+                    UPDATE attribution_sessions
+                    SET lead_id=:lid, converted_at=NOW(), updated_at=NOW()
+                    WHERE nexa_cid=:cid
+                """), {"lid": lead.id, "cid": nexa_cid_val})
+
+                # Emit lead_intake_submit event
+                await db.execute(_sqlt("""
+                    INSERT INTO attribution_events
+                      (nexa_cid, lead_id, event_type, vertical, page_path, event_data)
+                    VALUES (:cid, :lid, 'lead_intake_submit', :vert, :lp, :data::jsonb)
+                """), {
+                    "cid":  nexa_cid_val,
+                    "lid":  lead.id,
+                    "vert": getattr(payload, 'vertical', None),
+                    "lp":   getattr(payload, 'landing_page', None),
+                    "data": '{"source":"intake_form"}'
+                })
+
+                # Also update lead_intake table directly
+                await db.execute(_sqlt("""
+                    UPDATE lead_intake SET
+                      nexa_cid=:cid, is_attributed=TRUE
+                    WHERE id=:lid
+                """), {"cid": nexa_cid_val, "lid": lead.id})
+        except Exception as _ae:
+            import logging
+            logging.getLogger(__name__).warning(f"Attribution hook error: {_ae}")
 
         # Get member tenant
         tenant_result = await db.execute(

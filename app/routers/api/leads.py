@@ -30,6 +30,25 @@ def _lead_to_dict(lead: Lead) -> dict:
         "project_type": getattr(lead, "project_type", None),
         "source": getattr(lead, "source", None),
         "created_at":   str(lead.created_at) if lead.created_at else None,
+        # Financing / pre-qual fields
+        "needs_financing":    getattr(lead, "needs_financing", None),
+        "financing_amount":   float(lead.financing_amount) if getattr(lead, "financing_amount", None) else None,
+        "financing_type":     getattr(lead, "financing_type", None),
+        "pre_qual_score":     getattr(lead, "pre_qual_score", None),
+        "pre_qual_status":    getattr(lead, "pre_qual_status", None),
+        "pre_qual_tier":      ("A" if (getattr(lead,"pre_qual_score",None) or 0) >= 80
+                               else "B" if (getattr(lead,"pre_qual_score",None) or 0) >= 65
+                               else "C" if (getattr(lead,"pre_qual_score",None) or 0) >= 50
+                               else "D" if (getattr(lead,"pre_qual_score",None) or 0) >= 35
+                               else None) if getattr(lead,"pre_qual_score",None) else None,
+        "annual_income":      float(lead.annual_income) if getattr(lead, "annual_income", None) else None,
+        "employment_status":  getattr(lead, "employment_status", None),
+        "ownership_tenure":   getattr(lead, "ownership_tenure", None),
+        "years_at_address":   getattr(lead, "years_at_address", None),
+        "property_address":   getattr(lead, "property_address", None),
+        "property_type":      getattr(lead, "property_type", None),
+        "co_borrower":        getattr(lead, "co_borrower", None),
+        "stated_mortgage_balance": float(lead.stated_mortgage_balance) if getattr(lead, "stated_mortgage_balance", None) else None,
     }
 
 

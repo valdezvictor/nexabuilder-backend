@@ -7,8 +7,11 @@ from enum import Enum
 class ContentTypeEnum(str, Enum):
     text      = "text"
     image_url = "image_url"
+    image     = "image_url"   # alias
     json      = "json"
     html      = "html"
+    markdown  = "markdown"
+    video     = "video"
 
 
 # ── Public response (GET /api/content/{page_slug}/{block_key}) ───────────────
@@ -26,6 +29,7 @@ class ContentBlockPublic(BaseModel):
 
 # ── Admin upsert (PUT /api/content/{page_slug}/{block_key}) ──────────────────
 class ContentBlockUpsert(BaseModel):
+    updated_by: Optional[str] = None
     content_type: ContentTypeEnum = ContentTypeEnum.text
     value:        Optional[str]   = None
     alt_text:     Optional[str]   = None

@@ -211,31 +211,51 @@ async def lookup_license(
     Returns masked company info — enough to confirm it's them, not enough to abuse.
     Does NOT reveal address details (those are used for the challenge).
     """
-    result = await db.execute(
-        select(License).where(
-            License.license_number == license_number.strip().upper(),
-            License.state_code == "CA",
-        )
-    )
-    lic = result.scalars().first()
+    # Query contractors table (243K+ CSLB records)
+    from sqlalchemy import text as sqlt2
+    lic_clean = license_number.strip().upper().replace("-", "")
+    lic_raw   = license_number.strip().upper()
 
-    if not lic:
+    result = await db.execute(sqlt2(
+        "SELECT id, business_name, license_no, zip_code, city, "
+        "bond_amount, primary_status, classifications "
+        "FROM contractors "
+        "WHERE REPLACE(license_no, '-', '') = :clean OR license_no = :raw "
+        "LIMIT 1"
+    ), {"clean": lic_clean, "raw": lic_raw})
+    row = result.fetchone()
+
+    if not row:
         raise HTTPException(
             status_code=404,
             detail="License not found in CSLB database. Check the number and try again."
         )
 
-    # Mask company name — show first 3 chars + *** (confirms it's them without exposing all)
-    name = lic.contractor_name or ""
+    name = row[1] or ""
     masked_name = name[:3] + "***" if len(name) > 3 else name
 
+    # Check if license already has an active contractor_account
+    already = await db.execute(sqlt2(
+        "SELECT u.email FROM contractor_accounts ca "
+        "JOIN users u ON u.id=ca.user_id "
+        "WHERE ca.license_number=:raw OR ca.license_number=:clean "
+        "LIMIT 1"
+    ), {"raw": lic_raw, "clean": lic_clean})
+    already_row = already.fetchone()
+    already_registered = already_row is not None
+
     return {
-        "found": True,
-        "license_number": license_number.upper(),
-        "masked_name": masked_name,
-        "classification": lic.classification,
-        "status": lic.status,
-        "message": "License found. Proceed to register your contractor account.",
+        "found":              True,
+        "license_number":     lic_raw,
+        "masked_name":        masked_name,
+        "classification":     row[7] or "",
+        "status":             row[6] or "CLEAR",
+        "already_registered": already_registered,
+        "message":            (
+            "License already registered. Use your email or phone to sign in."
+            if already_registered else
+            "License found. Proceed to register your contractor account."
+        ),
     }
 
 
@@ -260,13 +280,28 @@ async def register_contractor(
     - On pass: cslb_verified = True, challenge_status = "passed"
     """
     # Lookup license in CSLB DB
-    lic_result = await db.execute(
-        select(License).where(
-            License.license_number == payload.license_number.strip().upper(),
-            License.state_code == payload.state_code,
-        )
-    )
-    lic = lic_result.scalars().first()
+    from sqlalchemy import text as sqlt3
+    lic_raw   = payload.license_number.strip().upper()
+    lic_clean = lic_raw.replace("-", "")
+    lic_result = await db.execute(sqlt3(
+        "SELECT id, business_name, license_no, zip_code, city, "
+        "bond_amount, primary_status, classifications "
+        "FROM contractors "
+        "WHERE REPLACE(license_no, '-', '') = :clean OR license_no = :raw "
+        "LIMIT 1"
+    ), {"clean": lic_clean, "raw": lic_raw})
+    lic_row = lic_result.fetchone()
+    # Create a simple namespace object for compatibility
+    class _Lic:
+        def __init__(self, r):
+            self.license_number  = r[2]
+            self.contractor_name = r[1]
+            self.zip_code        = r[3]
+            self.city            = r[4]
+            self.bond_amount     = r[5]
+            self.status          = r[6] or "CLEAR"
+            self.classification  = r[7] or ""
+    lic = _Lic(lic_row) if lic_row else None
 
     if not lic:
         raise HTTPException(status_code=404, detail="License not found in CSLB database.")
@@ -600,10 +635,50 @@ async def list_active_projects(
     }
 
 
-@router.post(
-    "/admin/active-projects/{project_id}/close",
-    summary="Close an active project (assessment access revoked)"
-)
+
+@router.get("/contractor/public-lookup/{license_number}", summary="Public CSLB lookup for registration")
+async def public_lookup(license_number: str, db: AsyncSession = Depends(get_db)):
+    """Public endpoint - no auth required. Used by registration form."""
+    from sqlalchemy import text as sqlt4
+    lic_raw   = license_number.strip().upper()
+    lic_clean = lic_raw.replace("-", "").replace(" ", "")
+
+    sql = (
+        "SELECT id, business_name, license_no, city, zip_code, phone, "
+        "primary_status, classifications, bond_amount "
+        "FROM contractors "
+        "WHERE REPLACE(license_no, '-', '') = :clean "
+        "   OR license_no = :raw "
+        "LIMIT 1"
+    )
+    result = await db.execute(sqlt4(sql), {"clean": lic_clean, "raw": lic_raw})
+    row = result.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="License not found in CSLB database.")
+
+    name    = row[1] or ""
+    city    = row[3] or ""
+    status  = row[6] or "UNKNOWN"
+    is_act  = status.upper() in ("CLEAR", "ACTIVE")
+    ph      = row[5] or ""
+
+    return {
+        "found":          True,
+        "contractor_id":  row[0],
+        "license_number": row[2],
+        "masked_name":    name[:3] + ("*" * max(3, len(name)-3)) if len(name) > 3 else name,
+        "masked_city":    city[:2] + ("*" * max(2, len(city)-2)) if len(city) > 2 else city,
+        "classification": row[7] or "",
+        "status":         status,
+        "is_active":      is_act,
+        "city_hint":      city,
+        "zip_hint":       row[4] or "",
+        "phone_hint":     ph[:3] + "****" + ph[-2:] if len(ph) >= 5 else "",
+        "message": "License verified. Please complete your registration." if is_act
+                   else "License found but status is " + status + ". Contact support.",
+    }
+
 async def close_active_project(
     project_id: int,
     db: AsyncSession = Depends(get_db),
@@ -616,3 +691,270 @@ async def close_active_project(
     project.project_status = "completed"
     await db.commit()
     return {"closed": True, "project_id": project_id}
+
+
+@router.post("/contractor/public-register",
+             summary="Public contractor self-registration — no admin key required")
+async def public_register(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Full contractor self-registration. Validates CSLB, smart-validates contact info, creates account, sends magic link."""
+    import uuid as _uuid, re, secrets, boto3
+    from datetime import datetime, timedelta
+    from sqlalchemy import text as _t
+
+    lic_raw    = (payload.get("license_number") or "").strip().upper()
+    lic_clean  = lic_raw.replace("-", "")
+    email      = (payload.get("email") or "").strip().lower()
+    phone_raw  = (payload.get("phone") or "").strip()
+    first_name = (payload.get("first_name") or "").strip()
+    last_name  = (payload.get("last_name") or "").strip()
+    city       = (payload.get("city") or "").strip()
+    zip_code   = (payload.get("zip_code") or "").strip()
+
+    if not lic_raw or not email:
+        raise HTTPException(status_code=422, detail="License number and email are required.")
+
+    # 1. CSLB lookup against contractors table
+    res = await db.execute(_t(
+        "SELECT id, business_name, license_no, zip_code, city, phone,"
+        " primary_status, classifications"
+        " FROM contractors"
+        " WHERE REPLACE(license_no,'-','')=:clean OR license_no=:raw"
+        " LIMIT 1"
+    ), {"clean": lic_clean, "raw": lic_raw})
+    cslb = res.fetchone()
+
+    if not cslb:
+        raise HTTPException(status_code=404,
+            detail="License not found in CSLB database.")
+
+    cslb_status = (cslb[6] or "").upper()
+    if cslb_status and cslb_status not in ("CLEAR", "ACTIVE"):
+        raise HTTPException(status_code=422,
+            detail="License status is '" + (cslb[6] or "") + "'. Only CLEAR licenses may register.")
+
+    warnings = []
+
+    # 2. Smart validation against CSLB record
+    cslb_zip = (cslb[3] or "").strip()
+    if cslb_zip and zip_code and zip_code != cslb_zip:
+        warnings.append("ZIP " + zip_code + " differs from CSLB record (" + cslb_zip + ").")
+
+    cslb_city_l = (cslb[4] or "").strip().lower()
+    sub_city_l  = city.lower()
+    if cslb_city_l and sub_city_l and cslb_city_l[:4] not in sub_city_l and sub_city_l[:4] not in cslb_city_l:
+        warnings.append("City '" + city + "' differs from CSLB record ('" + (cslb[4] or "") + "').")
+
+    phone_digits = re.sub(r"\D", "", phone_raw)
+    if phone_digits and len(phone_digits) != 10:
+        raise HTTPException(status_code=422, detail="Phone must be a valid 10-digit US number.")
+    if phone_digits and phone_digits[:3] in ("000", "911"):
+        raise HTTPException(status_code=422, detail="Phone area code is not valid.")
+
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        raise HTTPException(status_code=422, detail="Email format is invalid.")
+    if email.split("@")[-1] in {"mailinator.com","guerrillamail.com","throwaway.email"}:
+        raise HTTPException(status_code=422, detail="Please use a valid business email.")
+
+    # 3. Create or reactivate user
+    ex = await db.execute(_t(
+        "SELECT id FROM users WHERE email=:em LIMIT 1"
+    ), {"em": email})
+    ex_row = ex.fetchone()
+
+    if ex_row:
+        user_id = str(ex_row[0])
+        await db.execute(_t(
+            "UPDATE users SET status='active', first_name=:fn, last_name=:ln,"
+            " updated_at=NOW() WHERE id=:uid"
+        ), {"fn": first_name or cslb[1], "ln": last_name or "", "uid": user_id})
+    else:
+        user_id = str(_uuid.uuid4())
+        # Check if phone already taken by another user
+        ph_to_use = phone_digits or None
+        if ph_to_use:
+            ph_check = await db.execute(_t(
+                "SELECT id FROM users WHERE phone=:ph LIMIT 1"
+            ), {"ph": ph_to_use})
+            if ph_check.fetchone():
+                ph_to_use = None  # Skip phone if already used
+        await db.execute(_t(
+            "INSERT INTO users"
+            " (id, email, phone, role, status, first_name, last_name, created_at, updated_at)"
+            " VALUES (:uid, :em, :ph, 'contractor', 'active', :fn, :ln, NOW(), NOW())"
+        ), {"uid": user_id, "em": email, "ph": ph_to_use,
+            "fn": first_name or cslb[1], "ln": last_name or ""})
+
+    # 4. Create or update contractor_account
+    ca = await db.execute(_t(
+        "SELECT id FROM contractor_accounts WHERE user_id=:uid LIMIT 1"
+    ), {"uid": user_id})
+    if ca.fetchone():
+        await db.execute(_t(
+            "UPDATE contractor_accounts SET license_number=:lic, cslb_verified=TRUE,"
+            " contractor_db_id=:cid, company_name=:nm, updated_at=NOW() WHERE user_id=:uid"
+        ), {"lic": lic_raw, "cid": cslb[0], "nm": cslb[1], "uid": user_id})
+    else:
+        await db.execute(_t(
+            "INSERT INTO contractor_accounts"
+            " (user_id, license_number, state_code, cslb_verified, challenge_status,"
+            "  challenge_passed_at, contractor_db_id, company_name, created_at, updated_at)"
+            " VALUES (:uid, :lic, 'CA', TRUE, 'passed', NOW(), :cid, :nm, NOW(), NOW())"
+        ), {"uid": user_id, "lic": lic_raw, "cid": cslb[0], "nm": cslb[1]})
+
+    await db.commit()
+
+    # 5. Issue magic link
+    token  = secrets.token_urlsafe(32)
+    exp_at = datetime.utcnow() + timedelta(minutes=30)
+    import uuid as _uuid2
+    tok_id = str(_uuid2.uuid4())
+    await db.execute(_t(
+        "INSERT INTO auth_tokens (id, user_id, token, type, expires_at, created_at)"
+        " VALUES (:tid, :uid, :tok, 'email_magic_link', :exp, NOW())"
+    ), {"tid": tok_id, "uid": user_id, "tok": token, "exp": exp_at})
+    await db.commit()
+
+    magic_url  = "https://contractor.nexabuilder.com/auth/verify?token=" + token
+    email_sent = False
+    try:
+        ses = boto3.client("ses", region_name="us-east-1")
+        ses.send_email(
+            Source="NexaBuilder <noreply@nexabuilder.com>",
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": "Activate Your NexaBuilder Contractor Account"},
+                "Body": {"Html": {"Data": (
+                    "<div style='font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px'>"
+                    "<img src='https://www.nexabuilder.com/images/NexaBuilder_logo.png' height='36' alt='NexaBuilder'/>"
+                    "<h2 style='color:#0d1e35;margin-top:24px'>Welcome, " + (first_name or cslb[1] or "Contractor") + "!</h2>"
+                    "<p>Your <strong>" + (cslb[1] or "") + "</strong> contractor account is ready.</p>"
+                    "<a href='" + magic_url + "' style='display:inline-block;margin:24px 0;padding:14px 28px;"
+                    "background:#C8922A;color:#fff;text-decoration:none;border-radius:8px;font-weight:700'>"
+                    "Activate My Dashboard &rarr;</a>"
+                    "<p style='color:#888;font-size:12px'>Link expires in 30 minutes. NexaBuilder &middot; CSLB #1127866</p>"
+                    "</div>"
+                )}},
+            }
+        )
+        email_sent = True
+    except Exception as e:
+        print("WARNING: Magic link email failed " + email + ": " + str(e))
+
+    return {
+        "success":             True,
+        "user_id":             user_id,
+        "email_sent":          email_sent,
+        "magic_url":           magic_url if not email_sent else None,
+        "cslb_match": {
+            "business_name":  cslb[1],
+            "license_no":     cslb[2],
+            "city":           cslb[4],
+            "status":         cslb[6],
+            "classification": cslb[7],
+        },
+        "validation_warnings": warnings,
+        "message": (
+            "Account created! Check " + email + " for your activation link."
+            if email_sent else
+            "Account created. Use this link to activate: " + magic_url
+        ),
+    }
+
+# ── CONTRACTOR: Account Recovery (public) ────────────────────────────────────
+
+class ContractorRecovery(BaseModel):
+    license_number: str
+    email:          Optional[str] = None
+    phone:          Optional[str] = None
+
+@router.post("/contractor/recovery",
+             summary="Send sign-in link to already-registered contractor")
+async def contractor_recovery(
+    payload: ContractorRecovery,
+    db: AsyncSession = Depends(get_db),
+):
+    import uuid as _uuid2, secrets, boto3
+    from datetime import datetime, timedelta
+    from sqlalchemy import text as _t2
+
+    lic_raw   = payload.license_number.strip().upper()
+    lic_clean = lic_raw.replace("-","")
+    email     = (payload.email or "").strip().lower() or None
+    phone_raw = (payload.phone or "").strip()
+    import re as _re
+    phone = _re.sub(r"\D","",phone_raw) if phone_raw else None
+
+    # Find user via license + email or phone
+    if email:
+        res = await db.execute(_t2(
+            "SELECT u.id, u.email FROM users u "
+            "JOIN contractor_accounts ca ON ca.user_id=u.id "
+            "WHERE (ca.license_number=:raw OR ca.license_number=:clean) "
+            "AND u.email=:em LIMIT 1"
+        ), {"raw":lic_raw,"clean":lic_clean,"em":email})
+    elif phone:
+        res = await db.execute(_t2(
+            "SELECT u.id, u.email FROM users u "
+            "JOIN contractor_accounts ca ON ca.user_id=u.id "
+            "WHERE (ca.license_number=:raw OR ca.license_number=:clean) "
+            "AND u.phone=:ph LIMIT 1"
+        ), {"raw":lic_raw,"clean":lic_clean,"ph":phone})
+    else:
+        raise HTTPException(status_code=422,
+            detail="Provide either email or phone number.")
+
+    row = res.fetchone()
+    if not row:
+        raise HTTPException(status_code=404,
+            detail="No account found matching that license and contact info.")
+
+    user_id    = str(row[0])
+    user_email = row[1]
+
+    # Issue new magic link
+    token  = secrets.token_urlsafe(32)
+    exp_at = datetime.utcnow() + timedelta(minutes=30)
+    tok_id = str(_uuid2.uuid4())
+    await db.execute(_t2(
+        "INSERT INTO auth_tokens(id,user_id,token,type,expires_at,created_at) "
+        "VALUES(:tid,:uid,:tok,'email_magic_link',:exp,NOW())"
+    ), {"tid":tok_id,"uid":user_id,"tok":token,"exp":exp_at})
+    await db.commit()
+
+    magic_url = "https://contractor.nexabuilder.com/auth/verify?token="+token
+
+    email_sent = False
+    try:
+        ses = boto3.client("ses", region_name="us-east-1")
+        ses.send_email(
+            Source="NexaBuilder <noreply@nexabuilder.com>",
+            Destination={"ToAddresses":[user_email]},
+            Message={
+                "Subject":{"Data":"Your NexaBuilder Sign-In Link"},
+                "Body":{"Html":{"Data":(
+                    "<div style='font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px'>"
+                    "<img src='https://www.nexabuilder.com/images/NexaBuilder_logo.png' height='36' alt='NexaBuilder'/>"
+                    "<h2 style='color:#0d1e35;margin-top:24px'>Sign in to NexaBuilder</h2>"
+                    "<p>Click the button below to access your contractor dashboard.</p>"
+                    "<a href='"+magic_url+"' style='display:inline-block;margin:24px 0;padding:14px 28px;"
+                    "background:#C8922A;color:#fff;text-decoration:none;border-radius:8px;font-weight:700'>"
+                    "Sign In to My Dashboard &rarr;</a>"
+                    "<p style='color:#888;font-size:12px'>Link expires in 30 minutes. "
+                    "NexaBuilder &middot; CSLB #1127866</p></div>"
+                )}},
+            }
+        )
+        email_sent = True
+    except Exception as e:
+        print("WARNING: Recovery email failed "+user_email+": "+str(e))
+
+    return {
+        "success":    True,
+        "email_sent": email_sent,
+        "magic_url":  magic_url if not email_sent else None,
+        "message":    "Sign-in link sent to "+user_email+"." if email_sent else
+                      "Account found. Use this link: "+magic_url,
+    }

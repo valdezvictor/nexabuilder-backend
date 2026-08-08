@@ -11,6 +11,46 @@ router = APIRouter(prefix="/admin/metrics", tags=["Admin Metrics"])
 dashboard_router = APIRouter(prefix="/admin", tags=["Admin Dashboard"])
 
 
+
+@router.get("/")
+async def metrics_root(user: dict = Depends(get_current_user)):
+    """Root metrics endpoint — returns dashboard summary."""
+    try:
+        from app.models.lead import Lead
+        SessionLocal = get_sessionmaker()
+        async with SessionLocal() as db:
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            week_start = datetime.now(timezone.utc) - timedelta(days=7)
+            
+            today_result = await db.execute(
+                select(func.count()).select_from(Lead).where(Lead.created_at >= today_start)
+            )
+            week_result = await db.execute(
+                select(func.count()).select_from(Lead).where(Lead.created_at >= week_start)
+            )
+            total_result = await db.execute(select(func.count()).select_from(Lead))
+            
+            today = today_result.scalar() or 0
+            week = week_result.scalar() or 0
+            total = total_result.scalar() or 0
+            
+        return {
+            "status": "ok",
+            "leads_today": today,
+            "leads_this_week": week,
+            "leads_total": total,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        print(f"[METRICS] root error: {e}")
+        return {
+            "status": "ok",
+            "leads_today": 0,
+            "leads_this_week": 0,
+            "leads_total": 0,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
 @router.get("/leads/today")
 async def leads_today(user: dict = Depends(get_current_user)):
     """Total leads ingested today."""

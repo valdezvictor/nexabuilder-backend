@@ -17,6 +17,12 @@ from app.routers.api.trades import router as trades_router
 from app.routers.api.zip_lookup import router as zip_router
 from app.routers.api.ai import router as ai_router
 from app.routers.api.contractors import router as contractors_api_router
+from app.routers.api.revenue import router as revenue_router
+from app.routers.api.keyword_research import router as keyword_router
+from app.routers.api.meta_generator import router as meta_router
+from app.routers.api.content_tools import router as content_tools_router
+from app.routers.api.seo_pipeline import router as seo_router
+from app.routers.api.media_upload import router as media_router
 from app.routers.api.leads import router as leads_router
 from app.routers.api.routing import router as routing_router
 from app.routers.metrics import router as metrics_router
@@ -36,7 +42,7 @@ from app.routers.api.documents import router as documents_router
 from app.routers.api.contractor_match import router as contractor_match_router
 from app.routers.admin_metrics import router as admin_metrics_router
 from app.routers.admin_metrics import dashboard_router
-from app.routers.api.content import router as content_router
+from app.routers.api.content import router as content_router, cms_admin_router
 from app.routers.api.verify import router as verify_router
 from app.db import test_connection
 
@@ -47,12 +53,13 @@ REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method",
 DB_HEALTH = Gauge("db_health", "Database connection health (1=ok, 0=fail)")
 
 # ── App ──────────────────────────────────────────────────────────────────────
-application = FastAPI(title="NexaBuilder API", redirect_slashes=True)
+application = FastAPI(title="NexaBuilder API", redirect_slashes=False)
 
 # CORS — allow all NexaBuilder tenant origins
 application.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://valdezvictor.com",
         "https://nexabuilder.com",
         "https://www.nexabuilder.com",
         "https://unapiscina.com",
@@ -105,11 +112,17 @@ application.include_router(call_center_router, prefix="/call-center")
 application.include_router(trades_router)
 application.include_router(zip_router)
 application.include_router(ai_router)
-application.include_router(contractors_api_router)
 application.include_router(leads_router)
 application.include_router(routing_router)
 application.include_router(metrics_router)
 application.include_router(admin_metrics_router, prefix="/api")
+application.include_router(contractors_api_router)
+application.include_router(revenue_router)
+application.include_router(keyword_router)
+application.include_router(meta_router)
+application.include_router(content_tools_router)
+application.include_router(seo_router)
+application.include_router(media_router)
 application.include_router(dashboard_router)
 from app.routers.api.call_center_tools import router as call_tools_router
 from app.routers.api.user_management import router as user_mgmt_router
@@ -119,6 +132,7 @@ application.include_router(call_tools_router, prefix="/api")
 application.include_router(user_mgmt_router, prefix="/api")
 application.include_router(twilio_voice_router, prefix="/api")
 application.include_router(chat_router, prefix="/api")
+application.include_router(cms_admin_router)
 application.include_router(content_router)
 application.include_router(verify_router)
 application.include_router(blog_router)
@@ -172,3 +186,43 @@ from fastapi import Request as _Request
 @application.get("/api/debug-headers")
 async def debug_headers(request: _Request):
     return dict(request.headers)
+
+from app.routers.api.social_router import router as social_router, tracking_middleware
+application.include_router(social_router)
+application.middleware(chr(34)+'http'+chr(34))(tracking_middleware)
+
+from app.routers.api.gsc_router import router as gsc_router
+application.include_router(gsc_router)
+
+from app.routers.api.bing_router import router as bing_router
+application.include_router(bing_router)
+
+from app.routers.api.seo_content_router import router as seo_content_router
+application.include_router(seo_content_router)
+
+from app.routers.api.materials_router import router as materials_router
+application.include_router(materials_router)
+from app.routers.api.materials_bulk import router as materials_bulk_router
+application.include_router(materials_bulk_router)
+
+from app.attribution_middleware import AttributionMiddleware
+application.add_middleware(AttributionMiddleware)
+
+from app.routers.api.attribution_router import router as attribution_router
+application.include_router(attribution_router)
+
+from app.routers.api.call_tracking_router import router as call_tracking_router
+application.include_router(call_tracking_router)
+
+from app.routers.api.keyword_rank_router import router as rank_router
+application.include_router(rank_router)
+
+from app.routers.api.instagram_router import router as instagram_router
+application.include_router(instagram_router)
+
+from app.routers.api.financing_router import router as financing_router
+application.include_router(financing_router)
+from app.routers.api.crm_router import router as crm_router
+from app.routers.api.contact import _contact_router
+application.include_router(crm_router)
+app.include_router(_contact_router)

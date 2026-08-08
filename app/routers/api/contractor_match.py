@@ -352,7 +352,7 @@ async def auto_assign_best_contractor(
         }
 
 
-@router.get("/search")
+@router.get("/find")
 async def search_contractors(
     zip_code: Optional[str] = Query(None),
     city: Optional[str] = Query(None),

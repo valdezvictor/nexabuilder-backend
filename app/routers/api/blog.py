@@ -21,7 +21,7 @@ Admin endpoints (X-Admin-Key required):
 import os, re
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -416,3 +416,48 @@ async def get_article_public(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post("/admin/deploy")
+async def deploy_blog_static(request: Request):
+    import os, subprocess as _sp
+    admin_key = os.getenv("CMS_ADMIN_KEY","")
+    key = request.headers.get("x-admin-key","")
+    if key != admin_key:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Forbidden")
+    deploy_script = "/home/ec2-user/deploy_blog.py"
+    if not os.path.exists(deploy_script):
+        return {"status": "no_deploy_script", "note": "Deploy runs via MCP workspace"}
+    result = _sp.run(["python3", deploy_script], capture_output=True, text=True, timeout=120)
+    return {"status": "ok", "returncode": result.returncode, "out": result.stdout[-300:]}
+
+@router.post("/admin/article/{article_id}/suggest-meta")
+async def suggest_meta(article_id: int, payload: dict, x_admin_key: str = Header(...)):
+    import httpx as _h, re as _re, os as _os, json as _j
+    _require_admin(x_admin_key)
+    h1    = payload.get("h1","") or ""
+    kw    = (payload.get("primary_keyword","") or payload.get("slug","")).replace("-"," ")
+    notes = (payload.get("cdm_notes","") or "")[:400]
+    lines = [
+        "Generate SEO title (max 65 chars) and meta description (150-160 chars).",
+        "H1: " + h1,
+        "Keyword: " + kw,
+        "Site: Pool construction and home improvement in Southern California.",
+    ]
+    if notes:
+        lines.append("Fix these CDM issues: " + notes)
+    lines.append("{\"seo_title\":\"...\",\"meta_description\":\"...\"} — return ONLY this JSON.")
+    msg = "\n".join(lines)
+    key = _os.environ.get("ANTHROPIC_API_KEY","")
+    async with _h.AsyncClient(timeout=30) as c:
+        r = await c.post("https://api.anthropic.com/v1/messages",
+            headers={"x-api-key":key,"anthropic-version":"2023-06-01","content-type":"application/json"},
+            json={"model":"claude-sonnet-4-6","max_tokens":250,
+                  "messages":[{"role":"user","content":msg}]})
+    text = r.json()["content"][0]["text"].strip()
+    text = _re.sub(r"^```[a-z]*\n?|```$","",text,flags=_re.MULTILINE).strip()
+    try:
+        return _j.loads(text)
+    except Exception:
+        return {"seo_title":"","meta_description":text[:160]}
