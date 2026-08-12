@@ -304,7 +304,7 @@ async def _run_generation(job_id, topic, profile,
                     "4. 3-4 H2 sections, each opens with 1-2 sentence summary\n"
                     "5. Cost/comparison table with real SoCal 2024-2025 data\n"
                     "6. H2: FAQ — exactly 4 Q&As (40-80 words each)\n"
-                    "7. Conclusion + CTA to /get-free-quote/\n"
+                    "7. Conclusion + CTA to /get-quote/\n"
                     "TARGET: 900-1200 words. Complete every section."
                 ),
                 "guide_page": (
@@ -455,13 +455,20 @@ async def deploy_article_static(payload: _DeployReq, bg: BackgroundTasks,
     return {"status": "deploying"}
 
 async def _run_static_deploy():
-    import subprocess as _sp
+    import subprocess as _sp, os as _os
     try:
-        ws = "/home/ec2-user"
-        script = f"{ws}/deploy_blog.py"
-        import os
-        if os.path.exists(script):
-            _sp.run(["python3", script], capture_output=True, timeout=120)
+        script = "/home/ec2-user/deploy_blog.py"
+        if _os.path.exists(script):
+            result = _sp.run(["python3", script], capture_output=True, timeout=180)
+            log.info(f"Blog deploy: {result.stdout.decode()[-200:]}")
+        # CloudFront invalidation for all blog paths
+        _sp.run([
+            "aws", "cloudfront", "create-invalidation",
+            "--distribution-id", "EDLQAZ1IS2WIG",
+            "--paths", "/blog/*", "/blog/",
+            "--region", "us-east-1"
+        ], capture_output=True, timeout=30)
+        log.info("Blog CF invalidation triggered")
     except Exception as e:
         log.warning(f"Static deploy error: {e}")
 
@@ -753,7 +760,8 @@ async def update_article(article_id: int, payload: ArticleUpdate,
 
 @router.patch("/articles/{article_id}/status")
 async def update_article_status(article_id: int, payload: StatusUpdate,
-                                 x_admin_key: str = Header(...)):
+                                 x_admin_key: str = Header(...),
+                                 bg: BackgroundTasks = None):
     _require_admin(x_admin_key)
     allowed = {"DRAFT","REVIEW","PUBLISHED","FAILED"}
     if payload.status not in allowed:
@@ -763,6 +771,8 @@ async def update_article_status(article_id: int, payload: StatusUpdate,
         db.execute(sqlt("UPDATE ai_generated_articles SET status=:s WHERE id=:id"),
                    {"s":payload.status,"id":article_id})
         db.commit()
+        if payload.status == "PUBLISHED" and bg:
+            bg.add_task(_run_static_deploy)
         return {"success":True,"article_id":article_id,"status":payload.status}
     finally:
         db.close()
@@ -913,8 +923,8 @@ async def apply_suggestions(article_id: int, x_admin_key: str = Header(...)):
         raise HTTPException(400, "No review notes found. Run AI Review first.")
     body_html = d.get("body_html") or ""
     nl = chr(10)
-    link_list = "[verify CSLB license](/guides/verify-cslb-license), [get free quotes](/get-quote/), [pool installation](/services/pool-installation/)"
-    prompt = ("You are a Southern California contractor content editor." + nl + "PATCH the article below based on the CDM review notes. Make targeted fixes only." + nl + "Preserve all existing content, structure, and facts not mentioned in the notes." + nl + "Add 3-5 internal links where relevant: " + link_list + nl + nl + "CURRENT CDM SCORE: " + str(score) + "/100" + nl + "REVIEW NOTES (address each point):" + nl + review_notes[:2000] + nl + nl + "TITLE: " + (d.get("title") or "") + nl + "KEYWORD: " + (d.get("primary_keyword") or "") + nl + nl + "CURRENT ARTICLE HTML:" + nl + body_html[:10000] + nl + nl + "Return ONLY the patched full HTML body. No markdown fences. No html/head/body wrappers.")
+    link_list = ("[verify CSLB license](/guides/verify-cslb-license), ""[get free quotes](/get-quote/), ""[pool installation](/services/pool-installation/), ""[licensed roofing contractors](/services/roofing-contractors/), ""[Los Angeles home improvement](/locations/los-angeles/), ""[Orange County contractors](/locations/orange-county/), ""[home remodeling contractors](/services/home-remodeling/), ""[San Diego contractors](/locations/san-diego/)")
+    prompt = ("You are a Southern California home improvement content editor working on NexaBuilder.com." + nl+ "PATCH the article below based on the CDM review notes. Make ONLY the specific fixes noted." + nl+ "Preserve all existing content, structure, voice, and facts not mentioned in the notes." + nl+ "If the article is contractor-facing, keep that voice — do not convert it to homeowner-facing." + nl+ "Fix each bullet point in the review notes exactly as specified. Do not add unrequested changes." + nl + "Add 3-5 internal links where relevant: " + link_list + nl + nl + "CURRENT CDM SCORE: " + str(score) + "/100" + nl + "REVIEW NOTES (address each point):" + nl + review_notes[:4000] + nl + nl + "TITLE: " + (d.get("title") or "") + nl + "KEYWORD: " + (d.get("primary_keyword") or "") + nl + nl + "CURRENT ARTICLE HTML:" + nl + body_html[:12000] + nl + nl + "Return ONLY the patched full HTML body. No markdown fences. No html/head/body wrappers.")
     client = _ant.Anthropic()
     msg = client.messages.create(model="claude-sonnet-4-6", max_tokens=6000, messages=[{"role": "user", "content": prompt}])
     new_body = msg.content[0].text.strip()
