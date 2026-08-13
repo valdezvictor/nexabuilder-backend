@@ -972,3 +972,43 @@ def save_article_meta(article_id: int, payload: dict, x_admin_key: str = Header(
         return {'success': True, 'article_id': article_id, 'updated': list(fields.keys())}
     finally:
         db.close()
+
+@router.get('/cslb-lookup')
+def cslb_lookup(license_no: str = None, business_name: str = None, city: str = None):
+    """Public CSLB license lookup from NexaBuilder contractor DB."""
+    if not license_no and not business_name:
+        raise HTTPException(400, 'Provide license_no or business_name')
+    db = _db()
+    try:
+        conds = ['1=1']
+        params = {}
+        if license_no:
+            conds.append('UPPER(license_no) = :lic')
+            params['lic'] = license_no.strip().upper()
+        if business_name:
+            conds.append('UPPER(business_name) LIKE :biz')
+            params['biz'] = '%' + business_name.strip().upper() + '%'
+        if city:
+            conds.append('UPPER(city) LIKE :city')
+            params['city'] = '%' + city.strip().upper() + '%'
+        where = ' AND '.join(conds)
+        rows = db.execute(sqlt(
+            f'SELECT license_no, business_name, primary_status, secondary_status, '
+            f'classifications, city, state, zip_code, expiration_date, '
+            f'bond_amount, bond_company, issue_date '
+            f'FROM contractors WHERE {where} LIMIT 10'
+        ), params).fetchall()
+        results = []
+        for r in rows:
+            d = dict(r._mapping)
+            for k in ['expiration_date', 'issue_date']:
+                if d.get(k): d[k] = str(d[k])
+            results.append(d)
+        return {
+            'results': results,
+            'count': len(results),
+            'source': 'NexaBuilder contractor database (CSLB-sourced). Verify at CSLB.ca.gov.',
+            'cslb_url': 'https://www.cslb.ca.gov/OnlineServices/CheckLicenseII/CheckLicense.aspx'
+        }
+    finally:
+        db.close()
