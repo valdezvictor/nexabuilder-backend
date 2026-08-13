@@ -770,6 +770,9 @@ async def update_article_status(article_id: int, payload: StatusUpdate,
     try:
         db.execute(sqlt("UPDATE ai_generated_articles SET status=:s WHERE id=:id"),
                    {"s":payload.status,"id":article_id})
+        if payload.status == "PUBLISHED":
+            db.execute(sqlt("UPDATE ai_generated_articles SET published_at=NOW() WHERE id=:id AND published_at IS NULL"),
+                       {"id":article_id})
         db.commit()
         if payload.status == "PUBLISHED" and bg:
             bg.add_task(_run_static_deploy)
@@ -949,5 +952,23 @@ async def verify_complete(article_id: int, x_admin_key: str = Header(...)):
         if not result: raise HTTPException(404, "Article not found")
         db.commit()
         return {"success": True, "article_id": article_id, "verified_complete": True}
+    finally:
+        db.close()
+
+@router.patch('/articles/{article_id}/meta')
+def save_article_meta(article_id: int, payload: dict, x_admin_key: str = Header(...)):
+    _require_admin(x_admin_key)
+    db = _db()
+    try:
+        fields = {}
+        if 'title' in payload: fields['title'] = payload['title']
+        if 'meta_title' in payload: fields['meta_title'] = payload['meta_title']
+        if 'meta_description' in payload: fields['meta_description'] = payload['meta_description']
+        if not fields: raise HTTPException(400, 'No fields to update')
+        set_clause = ', '.join([f"{k}=:{k}" for k in fields])
+        fields['id'] = article_id
+        db.execute(sqlt(f'UPDATE ai_generated_articles SET {set_clause} WHERE id=:id'), fields)
+        db.commit()
+        return {'success': True, 'article_id': article_id, 'updated': list(fields.keys())}
     finally:
         db.close()
