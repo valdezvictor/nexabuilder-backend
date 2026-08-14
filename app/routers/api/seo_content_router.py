@@ -659,8 +659,8 @@ async def create_aeo_page(payload: CreateAEOPageRequest, x_admin_key: str = Head
         "Return ONLY the HTML body content (h1, p, ul tags). No html/head/body wrappers."
     )
 
-    client = _ant.Anthropic()
-    msg = client.messages.create(
+    client = _ant.AsyncAnthropic()
+    msg = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=900,
         system=system_prompt,
@@ -816,8 +816,8 @@ async def autofix_article(article_id: int, payload: AutoFixRequest,
         + "KEYWORD: " + (d.get("primary_keyword") or "") + nl
         + "CURRENT BODY:" + nl + body_text[:2500]
     )
-    client = _ant.Anthropic()
-    msg = client.messages.create(
+    client = _ant.AsyncAnthropic()
+    msg = await client.messages.create(
         model="claude-sonnet-4-6", max_tokens=4000,
         messages=[{"role":"user","content":fix_prompt}]
     )
@@ -885,8 +885,8 @@ async def suggest_meta(article_id: int, x_admin_key: str = Header(...)):
             + "META: (140-155 chars, direct benefit, no fluff, unique from list)" + nl
             + "SNIPPET: (40-60 words, direct answer to the homeowner question)"
         )
-        client = _ant.Anthropic()
-        msg = client.messages.create(model="claude-sonnet-4-6", max_tokens=300,
+        client = _ant.AsyncAnthropic()
+        msg = await client.messages.create(model="claude-sonnet-4-6", max_tokens=300,
             messages=[{"role": "user", "content": prompt}])
         text = msg.content[0].text.strip()
         title = meta = snippet = ""
@@ -928,8 +928,8 @@ async def apply_suggestions(article_id: int, x_admin_key: str = Header(...)):
     nl = chr(10)
     link_list = ("[verify CSLB license](/guides/verify-cslb-license), ""[get free quotes](/get-quote/), ""[pool installation](/services/pool-installation/), ""[licensed roofing contractors](/services/roofing-contractors/), ""[Los Angeles home improvement](/locations/los-angeles/), ""[Orange County contractors](/locations/orange-county/), ""[home remodeling contractors](/services/home-remodeling/), ""[San Diego contractors](/locations/san-diego/)")
     prompt = ("You are a Southern California home improvement content editor working on NexaBuilder.com." + nl+ "PATCH the article below based on the CDM review notes. Make ONLY the specific fixes noted." + nl+ "Preserve all existing content, structure, voice, and facts not mentioned in the notes." + nl+ "If the article is contractor-facing, keep that voice — do not convert it to homeowner-facing." + nl+ "Fix each bullet point in the review notes exactly as specified. Do not add unrequested changes." + nl + "Add 3-5 internal links where relevant: " + link_list + nl + nl + "CURRENT CDM SCORE: " + str(score) + "/100" + nl + "REVIEW NOTES (address each point):" + nl + review_notes[:4000] + nl + nl + "TITLE: " + (d.get("title") or "") + nl + "KEYWORD: " + (d.get("primary_keyword") or "") + nl + nl + "CURRENT ARTICLE HTML:" + nl + body_html[:12000] + nl + nl + "Return ONLY the patched full HTML body. No markdown fences. No html/head/body wrappers.")
-    client = _ant.Anthropic()
-    msg = client.messages.create(model="claude-sonnet-4-6", max_tokens=6000, messages=[{"role": "user", "content": prompt}])
+    client = _ant.AsyncAnthropic()
+    msg = await client.messages.create(model="claude-sonnet-4-6", max_tokens=6000, messages=[{"role": "user", "content": prompt}])
     new_body = msg.content[0].text.strip()
     new_body = _re2.sub(r"^```[a-z]*\n?|```$", "", new_body, flags=_re2.IGNORECASE|_re2.MULTILINE).strip()
     db2 = _db()
