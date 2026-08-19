@@ -773,6 +773,17 @@ async def update_article_status(article_id: int, payload: StatusUpdate,
         if payload.status == "PUBLISHED":
             db.execute(sqlt("UPDATE ai_generated_articles SET published_at=NOW() WHERE id=:id AND published_at IS NULL"),
                        {"id":article_id})
+            # Editorial linter
+            try:
+                import subprocess as _l_sp, tempfile as _l_tf, os as _l_os
+                with _l_tf.NamedTemporaryFile(mode='w',suffix='.html',delete=False) as _lf:
+                    _lbody=db.execute(sqlt('SELECT body_html FROM ai_generated_articles WHERE id=:id'),{'id':article_id}).fetchone()
+                    _lf.write(_lbody.body_html if _lbody and _lbody.body_html else '')
+                    _ltmp=_lf.name
+                _lr=_l_sp.run(['/var/www/nexabuilder/backend/current/venv/bin/python','/var/www/nexabuilder/editorial/validate_editorial.py',_ltmp,'--inventory','/var/www/nexabuilder/editorial/editorial-inventory.json'],capture_output=True,text=True,timeout=10)
+                log.info(f'Linter [{article_id}] rc={_lr.returncode}: {_lr.stdout.strip()[:200]}')
+                _l_os.unlink(_ltmp)
+            except Exception as _le: log.warning(f'Linter error: {_le}')
         db.commit()
         if payload.status == "PUBLISHED" and bg:
             bg.add_task(_run_static_deploy)
