@@ -495,8 +495,16 @@ async def review_article_via_cdm(job_id: int, x_admin_key: str = Header(...)):
 
         # Strip HTML tags for CDM review (CDM expects markdown/text)
         import re as _re
-        body_text = _re.sub(r'<[^>]+>', ' ', d.get('body_html') or '')
+        # Extract Quick Answer block before stripping HTML so CDM can find it
+        _raw_html = d.get('body_html') or ''
+        _qa_match = _re.search(r'(?:blockquote|div)[^>]*>.*?Quick\s*Answer[:\s]*(.*?)(?:</blockquote>|</div>|<h[1-6])', _raw_html, _re.I | _re.S)
+        _qa_text = _re.sub(r'<[^>]+>', ' ', _qa_match.group(1)).strip() if _qa_match else ''
+        _qa_words = len(_qa_text.split()) if _qa_text else 0
+        body_text = _re.sub(r'<[^>]+>', ' ', _raw_html)
         body_text = _re.sub(r'\s+', ' ', body_text).strip()
+        # Prepend structured Quick Answer marker so CDM scoring can find it
+        if _qa_text:
+            body_text = f'## Quick Answer ({_qa_words} words)' + chr(10) + _qa_text + chr(10) + chr(10) + body_text
 
         cdm_payload = {
             "brand_id": "nexabuilder",
@@ -937,7 +945,24 @@ async def apply_suggestions(article_id: int, x_admin_key: str = Header(...)):
         raise HTTPException(400, "No review notes found. Run AI Review first.")
     body_html = d.get("body_html") or ""
     nl = chr(10)
-    link_list = ("[verify CSLB license](/guides/verify-cslb-license), ""[get free quotes](/get-quote/), ""[pool installation](/services/pool-installation/), ""[licensed roofing contractors](/services/roofing-contractors/), ""[Los Angeles home improvement](/locations/los-angeles/), ""[Orange County contractors](/locations/orange-county/), ""[home remodeling contractors](/services/home-remodeling/), ""[San Diego contractors](/locations/san-diego/)")
+    link_list = ("[verify CSLB license](/guides/verify-cslb-license/), ""[get free contractor quotes](/get-quote/), ""[pool installation](/services/pool-installation/), ""[licensed roofing contractors](/services/roofing/), ""[licensed electricians](/services/electrical/), ""[Los Angeles home improvement](/locations/los-angeles/), ""[Orange County contractors](/locations/orange-county/), ""[home remodeling contractors](/services/home-remodeling/), ""[San Diego contractors](/locations/san-diego/)")
+    # Deterministic Quick Answer word-count fix BEFORE calling Claude
+    _qa_re = re.compile(
+        r'(<(?:blockquote|div)[^>]*>\s*<p[^>]*>\s*<strong>Quick\s*Answer:\s*</strong>)(.*?)(</p>\s*</(?:blockquote|div)>)',
+        re.I | re.S
+    )
+    _qa_m = _qa_re.search(body_html)
+    if _qa_m and ("quick answer word" in review_notes.lower() or "word count" in review_notes.lower()):
+        _qa_inner = _re2.sub(r"<[^>]+>", " ", _qa_m.group(2)).strip()
+        _qa_words = _qa_inner.split()
+        if len(_qa_words) > 60:
+            _qa_trimmed = " ".join(_qa_words[:55])
+            body_html = _qa_re.sub(
+                lambda m: m.group(1) + " " + _qa_trimmed + m.group(3),
+                body_html, count=1
+            )
+        elif len(_qa_words) < 40:
+            pass  # Claude will expand it per the review notes
     prompt = ("You are a Southern California home improvement content editor working on NexaBuilder.com." + nl+ "PATCH the article below based on the CDM review notes. Make ONLY the specific fixes noted." + nl+ "Preserve all existing content, structure, voice, and facts not mentioned in the notes." + nl+ "If the article is contractor-facing, keep that voice — do not convert it to homeowner-facing." + nl+ "Fix each bullet point in the review notes exactly as specified. Do not add unrequested changes." + nl + "Add 3-5 internal links where relevant: " + link_list + nl + nl + "CURRENT CDM SCORE: " + str(score) + "/100" + nl + "REVIEW NOTES (address each point):" + nl + review_notes[:4000] + nl + nl + "TITLE: " + (d.get("title") or "") + nl + "KEYWORD: " + (d.get("primary_keyword") or "") + nl + nl + "CURRENT ARTICLE HTML:" + nl + body_html[:12000] + nl + nl + "Return ONLY the patched full HTML body. No markdown fences. No html/head/body wrappers.")
     client = _ant.AsyncAnthropic()
     msg = await client.messages.create(model="claude-sonnet-4-6", max_tokens=6000, messages=[{"role": "user", "content": prompt}])
