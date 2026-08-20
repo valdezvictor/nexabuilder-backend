@@ -501,10 +501,13 @@ async def review_article_via_cdm(job_id: int, x_admin_key: str = Header(...)):
         _qa_text = _re.sub(r'<[^>]+>', ' ', _qa_match.group(1)).strip() if _qa_match else ''
         _qa_words = len(_qa_text.split()) if _qa_text else 0
         body_text = _re.sub(r'<[^>]+>', ' ', _raw_html)
+        from app.link_extractor import extract_internal_links, build_link_section
+        _found_links = extract_internal_links(_raw_html)
         body_text = _re.sub(r'\s+', ' ', body_text).strip()
         # Prepend structured Quick Answer marker so CDM scoring can find it
         if _qa_text:
             body_text = f'## Quick Answer ({_qa_words} words)' + chr(10) + _qa_text + chr(10) + chr(10) + body_text
+            body_text += build_link_section(_found_links)
 
         cdm_payload = {
             "brand_id": "nexabuilder",
