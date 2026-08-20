@@ -950,9 +950,9 @@ async def apply_suggestions(article_id: int, x_admin_key: str = Header(...)):
     nl = chr(10)
     link_list = ("[verify CSLB license](/guides/verify-cslb-license/), ""[get free contractor quotes](/get-quote/), ""[pool installation](/services/pool-installation/), ""[licensed roofing contractors](/services/roofing/), ""[licensed electricians](/services/electrical/), ""[Los Angeles home improvement](/locations/los-angeles/), ""[Orange County contractors](/locations/orange-county/), ""[home remodeling contractors](/services/home-remodeling/), ""[San Diego contractors](/locations/san-diego/)")
     # Deterministic Quick Answer word-count fix BEFORE calling Claude
-    _qa_re = re.compile(
+    _qa_re = _re2.compile(
         r'(<(?:blockquote|div)[^>]*>\s*<p[^>]*>\s*<strong>Quick\s*Answer:\s*</strong>)(.*?)(</p>\s*</(?:blockquote|div)>)',
-        re.I | re.S
+        _re2.I | _re2.S
     )
     _qa_m = _qa_re.search(body_html)
     if _qa_m and ("quick answer word" in review_notes.lower() or "word count" in review_notes.lower()):
