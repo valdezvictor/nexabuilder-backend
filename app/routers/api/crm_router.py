@@ -523,6 +523,52 @@ def update_lead_status(lead_id: int, payload: dict, x_admin_key: str = Header(..
         db.close()
 
 
+@router.patch("/leads/{lead_id}/financing")
+def toggle_financing(lead_id: int, payload: dict, x_admin_key: str = Header(...)):
+    """Toggle needs_financing and update financing fields on a lead."""
+    _adm(x_admin_key)
+    db = _db()
+    try:
+        needs = payload.get("needs_financing")
+        status = payload.get("financing_status")
+        amount = payload.get("financing_amount")
+        term = payload.get("financing_term_months")
+        lender = payload.get("lender_ref")
+        sets = []
+        params = {"id": lead_id}
+        if needs is not None:
+            sets.append("needs_financing=:needs")
+            params["needs"] = needs
+        if status is not None:
+            sets.append("financing_status=:status")
+            params["status"] = status
+        if amount is not None:
+            sets.append("financing_amount=:amount")
+            params["amount"] = amount
+        if term is not None:
+            sets.append("financing_term_months=:term")
+            params["term"] = term
+        if lender is not None:
+            sets.append("lender_ref=:lender")
+            params["lender"] = lender
+        if not sets:
+            raise HTTPException(400, "No fields to update")
+        db.execute(sqlt(
+            f"UPDATE leads SET {','.join(sets)}, status_updated_at=NOW() WHERE id=:id"
+        ), params)
+        db.commit()
+        row = db.execute(sqlt(
+            "SELECT needs_financing, financing_status, financing_amount, "
+            "financing_term_months, lender_ref FROM leads WHERE id=:id"
+        ), {"id": lead_id}).fetchone()
+        return {"success": True, "lead_id": lead_id,
+                "needs_financing": row.needs_financing,
+                "financing_status": row.financing_status,
+                "financing_amount": float(row.financing_amount) if row.financing_amount else None,
+                "lender_ref": row.lender_ref}
+    finally:
+        db.close()
+
 @router.get("/milestones")
 def get_milestones(x_admin_key: str = Header(...), status: str = None, disputed_only: bool = False):
     _adm(x_admin_key)
