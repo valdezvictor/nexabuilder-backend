@@ -214,6 +214,8 @@ async def _deploy_guide(slug: str, g: dict):
             "--region", "us-east-1"
         ], capture_output=True, timeout=30)
         log.info(f"Guide live: /guides/{slug}/")
+        _sp3.run(["/var/www/nexabuilder/backend/current/venv/bin/python","/home/ec2-user/rebuild_guides_index.py"],capture_output=True,timeout=30)
+        log.info("Guides index rebuilt after publish")
     except Exception as e:
         log.error(f"Guide deploy failed [{slug}]: {e}")
 
