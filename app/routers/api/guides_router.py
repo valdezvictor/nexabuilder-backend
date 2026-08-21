@@ -198,23 +198,24 @@ async def publish_guide(slug: str, x_admin_key: str = Header(...), bg: Backgroun
 
 async def _deploy_guide(slug: str, g: dict):
     try:
-        from app.routers.api.seo_content_router import build_article_html_page
-        pass
-    except Exception:
-        pass
-    # Build and deploy static guide page
-    _sp.run([
-        "python3", "/home/ec2-user/deploy_guide.py", slug
-    ], capture_output=True, timeout=60)
-    # CloudFront invalidation
-    _sp.run([
-        "aws", "cloudfront", "create-invalidation",
-        "--distribution-id", "EDLQAZ1IS2WIG",
-        "--paths", f"/guides/{slug}/", "/guides/",
-        "--region", "us-east-1"
-    ], capture_output=True, timeout=30)
-    log.info(f"Guide deployed: /guides/{slug}/")
-
+        import subprocess as _sp3
+        result = _sp3.run(
+            ["/var/www/nexabuilder/backend/current/venv/bin/python",
+             "/home/ec2-user/deploy_guide.py", slug],
+            capture_output=True, text=True, timeout=90
+        )
+        log.info(f"Guide deploy [{slug}]: {result.stdout.strip()[-200:]}")
+        if result.returncode != 0:
+            log.error(f"Guide deploy error: {result.stderr[:200]}")
+        _sp3.run([
+            "aws", "cloudfront", "create-invalidation",
+            "--distribution-id", "EDLQAZ1IS2WIG",
+            "--paths", f"/guides/{slug}/", "/guides/",
+            "--region", "us-east-1"
+        ], capture_output=True, timeout=30)
+        log.info(f"Guide live: /guides/{slug}/")
+    except Exception as e:
+        log.error(f"Guide deploy failed [{slug}]: {e}")
 
 @router.post("/guides/bulk-publish")
 async def bulk_publish(x_admin_key: str = Header(...), bg: BackgroundTasks = None):
