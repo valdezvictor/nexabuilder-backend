@@ -279,3 +279,64 @@ async def list_sessions(
         return {"sessions": [dict(r._mapping) for r in rows], "total": len(rows)}
     finally:
         db.close()
+
+# ── UTM Ping — called by browser pixel snippet ────────────────────────────────
+
+class UTMPingPayload(BaseModel):
+    nexa_cid: Optional[str] = None
+    fbclid: Optional[str] = None
+    gclid: Optional[str] = None
+    ttclid: Optional[str] = None
+    msclkid: Optional[str] = None
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
+    utm_term: Optional[str] = None
+    landing_page: Optional[str] = None
+    referrer: Optional[str] = None
+
+
+@router.post("/utm/ping", include_in_schema=False)
+async def utm_ping(payload: UTMPingPayload):
+    """
+    Called by the browser pixel snippet on page load when UTMs or ad click IDs
+    are present in the URL. Writes or updates the attribution_sessions row.
+    No auth required — public endpoint.
+    """
+    if not payload.nexa_cid:
+        return {"ok": False, "reason": "no_cid"}
+    db = _db()
+    try:
+        from sqlalchemy import text as sqlt2
+        db.execute(sqlt2("""
+            INSERT INTO attribution_sessions
+              (nexa_cid, tenant_id, utm_source, utm_medium, utm_campaign,
+               utm_content, utm_term, fbclid, gclid, ttclid, msclkid,
+               landing_page, referrer, first_touch_at, last_touch_at, touch_count)
+            VALUES
+              (:cid, 'nexabuilder', :src, :med, :cmp,
+               :cnt, :trm, :fbc, :gcl, :ttc, :msc,
+               :lp, :ref, NOW(), NOW(), 1)
+            ON CONFLICT (nexa_cid) DO UPDATE SET
+              last_touch_at = NOW(),
+              touch_count   = attribution_sessions.touch_count + 1,
+              fbclid  = COALESCE(:fbc, attribution_sessions.fbclid),
+              gclid   = COALESCE(:gcl, attribution_sessions.gclid),
+              ttclid  = COALESCE(:ttc, attribution_sessions.ttclid)
+        """), {
+            "cid": payload.nexa_cid,
+            "src": payload.utm_source, "med": payload.utm_medium,
+            "cmp": payload.utm_campaign, "cnt": payload.utm_content,
+            "trm": payload.utm_term, "fbc": payload.fbclid,
+            "gcl": payload.gclid, "ttc": payload.ttclid,
+            "msc": payload.msclkid, "lp": payload.landing_page,
+            "ref": payload.referrer
+        })
+        db.commit()
+        return {"ok": True, "nexa_cid": payload.nexa_cid}
+    except Exception as e:
+        log.warning(f"UTM ping failed: {e}")
+        return {"ok": False, "reason": str(e)}
+    finally:
+        db.close()

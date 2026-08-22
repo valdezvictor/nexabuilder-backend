@@ -75,6 +75,11 @@ def complete_job(payload: CompleteJobPayload, x_admin_key: str = Header(...)):
           job_notes         = :notes
         WHERE id = :lid
     """), {"amt": payload.job_amount, "notes": payload.job_notes, "lid": payload.lead_id})
+    # Fire CAPI Purchase event for completed job
+    try:
+        import threading as _ct; from app.capi_dispatcher import fire_lead_event as _cf
+        _ct.Thread(target=_cf, args=(payload.lead_id,"Purchase",float(payload.job_amount or 0)), daemon=True).start()
+    except Exception: pass
 
     # 3. Create review request row
     token = secrets.token_urlsafe(32)

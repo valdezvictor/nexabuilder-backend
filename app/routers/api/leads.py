@@ -531,6 +531,14 @@ async def lead_intake(payload: LeadIntakeRequest):
         )
         db.add(lead)
         await db.commit()
+        # Fire CAPI Lead event in background
+        try:
+            import threading as _thr
+            from app.capi_dispatcher import fire_lead_event as _capi
+            await db.refresh(lead)  # get the new lead.id
+            _thr.Thread(target=_capi, args=(lead.id, "Lead", 0.0), daemon=True).start()
+        except Exception as _ce:
+            import logging; logging.getLogger("capi").warning(f"CAPI thread failed: {_ce}")
 
         # Send magic link
         token = create_magic_token(str(user.id), user.email)
