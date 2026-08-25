@@ -20,8 +20,9 @@ log = logging.getLogger("capi")
 META_PIXEL_ID        = os.getenv("META_PIXEL_ID", "")
 META_ACCESS_TOKEN    = os.getenv("META_ACCESS_TOKEN", "")
 META_TEST_EVENT_CODE = os.getenv("META_TEST_EVENT_CODE", "")
-GOOGLE_ADS_CONV_ID   = os.getenv("GOOGLE_ADS_CONVERSION_ID", "")
-GOOGLE_ADS_CONV_LABEL= os.getenv("GOOGLE_ADS_CONVERSION_LABEL", "")
+GOOGLE_ADS_CONV_ID    = os.getenv("GOOGLE_ADS_CONVERSION_ID", "")
+GOOGLE_ADS_CONV_LABEL = os.getenv("GOOGLE_ADS_CONVERSION_LABEL", "")
+GOOGLE_ADS_POOL_LABEL = os.getenv("GOOGLE_ADS_POOL_LABEL", "")
 CAPI_ENABLED         = bool(META_PIXEL_ID and META_PIXEL_ID != "REPLACE_WITH_PIXEL_ID")
 
 
@@ -132,7 +133,7 @@ def _fire_google_conversion(lead: dict, revenue: float = 0.0) -> str:
         "events": [{
             "name": "conversion",
             "params": {
-                "send_to": f"{GOOGLE_ADS_CONV_ID}/{GOOGLE_ADS_CONV_LABEL}",
+                "send_to": f"{GOOGLE_ADS_CONV_ID}/" + (GOOGLE_ADS_POOL_LABEL if (lead.get("vertical") or "").lower() in ("pool","pool_installation","swimming_pool") else GOOGLE_ADS_CONV_LABEL),
                 "value": float(revenue or 0),
                 "currency": "USD",
                 "transaction_id": str(lead.get("id","")),
