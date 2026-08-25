@@ -479,6 +479,14 @@ class LeadIntakeRequest(_BaseModel):
     phone:         _Optional[str] = None
     address_line1: _Optional[str] = None
     project_scope: _Optional[str] = None
+    nexa_cid:     _Optional[str] = None
+    fbclid:       _Optional[str] = None
+    gclid:        _Optional[str] = None
+    utm_source:   _Optional[str] = None
+    utm_medium:   _Optional[str] = None
+    utm_campaign: _Optional[str] = None
+    landing_page: _Optional[str] = None
+    referrer:     _Optional[str] = None
 
 @router.post("/intake")
 async def lead_intake(payload: LeadIntakeRequest):
@@ -531,6 +539,28 @@ async def lead_intake(payload: LeadIntakeRequest):
         )
         db.add(lead)
         await db.commit()
+        # Write attribution session — links lead to click IDs for CAPI matching
+        if payload.nexa_cid or payload.fbclid or payload.gclid:
+            try:
+                import psycopg2 as _pg
+                _c = _pg.connect(host='nexabuilder-prod-db.cyfiieky5gzb.us-west-1.rds.amazonaws.com',
+                    user='nexabuilder_admin',password='NexaDB2026Prod!',dbname='postgres',port=5432)
+                _cu = _c.cursor()
+                _cu.execute(
+                    'INSERT INTO attribution_sessions(nexa_cid,tenant_id,fbclid,gclid,'
+                    'utm_source,utm_medium,utm_campaign,utm_content,landing_page,referrer,'
+                    'lead_id,converted_at,first_touch_at,last_touch_at)'
+                    ' VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW(),NOW())'
+                    ' ON CONFLICT(nexa_cid) DO UPDATE SET lead_id=EXCLUDED.lead_id,'
+                    'converted_at=NOW(),'
+                    'fbclid=COALESCE(EXCLUDED.fbclid,attribution_sessions.fbclid),'
+                    'gclid=COALESCE(EXCLUDED.gclid,attribution_sessions.gclid)',
+                    (payload.nexa_cid or str(lead.id),'nexabuilder',
+                     payload.fbclid,payload.gclid,
+                     payload.utm_source,payload.utm_medium,payload.utm_campaign,None,
+                     payload.landing_page,payload.referrer,lead.id))
+                _c.commit(); _c.close()
+            except Exception as _ae: pass
         # Fire CAPI Lead event in background
         try:
             import threading as _thr
