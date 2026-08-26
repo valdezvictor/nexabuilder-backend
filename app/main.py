@@ -211,7 +211,9 @@ from app.attribution_middleware import AttributionMiddleware
 application.add_middleware(AttributionMiddleware)
 
 from app.routers.api.attribution_router import router as attribution_router
+from app.routers.api.experiment_router import router as experiment_router
 application.include_router(attribution_router)
+application.include_router(experiment_router)
 
 from app.routers.api.call_tracking_router import router as call_tracking_router
 application.include_router(call_tracking_router)
