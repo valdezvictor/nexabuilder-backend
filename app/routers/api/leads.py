@@ -505,6 +505,11 @@ async def lead_intake(payload: LeadIntakeRequest):
 
     SessionLocal = get_sessionmaker()
     async with SessionLocal() as db:
+        # Reset any dirty transaction state before queries
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         # Get member tenant
         tenant_result = await db.execute(
             select(Tenant).where(Tenant.domain == "member.nexabuilder.com")
@@ -539,27 +544,39 @@ async def lead_intake(payload: LeadIntakeRequest):
         )
         db.add(lead)
         await db.commit()
-        # Write attribution session — links lead to click IDs for CAPI matching
-        if payload.nexa_cid or payload.fbclid or payload.gclid:
+        # Stamp lead_id onto attribution session — isolated connection, never fails lead
+        if payload.nexa_cid:
             try:
-                import psycopg2 as _pg
-                _c = _pg.connect(host='nexabuilder-prod-db.cyfiieky5gzb.us-west-1.rds.amazonaws.com',
-                    user='nexabuilder_admin',password='NexaDB2026Prod!',dbname='postgres',port=5432)
-                _cu = _c.cursor()
-                _cu.execute(
-                    'INSERT INTO attribution_sessions(nexa_cid,tenant_id,fbclid,gclid,'
-                    'utm_source,utm_medium,utm_campaign,utm_content,landing_page,referrer,'
-                    'lead_id,converted_at,first_touch_at,last_touch_at)'
-                    ' VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW(),NOW())'
-                    ' ON CONFLICT(nexa_cid) DO UPDATE SET lead_id=EXCLUDED.lead_id,'
-                    'converted_at=NOW(),'
-                    'fbclid=COALESCE(EXCLUDED.fbclid,attribution_sessions.fbclid),'
-                    'gclid=COALESCE(EXCLUDED.gclid,attribution_sessions.gclid)',
-                    (payload.nexa_cid or str(lead.id),'nexabuilder',
-                     payload.fbclid,payload.gclid,
-                     payload.utm_source,payload.utm_medium,payload.utm_campaign,None,
-                     payload.landing_page,payload.referrer,lead.id))
-                _c.commit(); _c.close()
+                import psycopg2 as _pg2
+                _ac = _pg2.connect(
+                    host="nexabuilder-prod-db.cyfiieky5gzb.us-west-1.rds.amazonaws.com",
+                    user="nexabuilder_admin", password="NexaDB2026Prod!",
+                    dbname="postgres", port=5432, connect_timeout=3)
+                _ac.autocommit = True
+                _acu = _ac.cursor()
+                sql_upd = ("UPDATE attribution_sessions SET lead_id=%s, converted_at=NOW(),"
+                           " fbclid=COALESCE(%s,fbclid), gclid=COALESCE(%s,gclid),"
+                           " utm_source=COALESCE(%s,utm_source),"
+                           " utm_medium=COALESCE(%s,utm_medium),"
+                           " utm_campaign=COALESCE(%s,utm_campaign)"
+                           " WHERE nexa_cid=%s")
+                _acu.execute(sql_upd, (lead.id, payload.fbclid, payload.gclid,
+                    payload.utm_source, payload.utm_medium, payload.utm_campaign,
+                    payload.nexa_cid))
+                if _acu.rowcount == 0:
+                    sql_ins = ("INSERT INTO attribution_sessions"
+                               "(nexa_cid,tenant_id,lead_id,converted_at,"
+                               "utm_source,utm_medium,utm_campaign,landing_page,fbclid,gclid)"
+                               " VALUES(%s,%s,%s,NOW(),%s,%s,%s,%s,%s,%s)"
+                               " ON CONFLICT(nexa_cid) DO UPDATE SET"
+                               " lead_id=EXCLUDED.lead_id,converted_at=NOW()")
+                    _acu.execute(sql_ins, (payload.nexa_cid, "nexabuilder", lead.id,
+                        payload.utm_source, payload.utm_medium, payload.utm_campaign,
+                        payload.landing_page, payload.fbclid, payload.gclid))
+                _ac.close()
+            except Exception as _ae:
+                import logging as _alog
+                _alog.getLogger("attribution").warning("Session stamp failed: %s", _ae)
             except Exception as _ae: pass
         # Fire CAPI Lead event in background
         try:
