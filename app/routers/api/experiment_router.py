@@ -1,3 +1,4 @@
+import os
 """
 experiment_router.py — CRO A/B experiment tracking
 Records impressions and conversions per variant.
