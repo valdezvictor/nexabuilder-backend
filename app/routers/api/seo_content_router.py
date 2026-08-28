@@ -1298,3 +1298,50 @@ async def service_page_chat(payload: ChatRequest, x_admin_key: str = Header(None
         "tokens": msg.usage.input_tokens + msg.usage.output_tokens
     }
 
+
+
+# ── Service Page One-Click Deploy ─────────────────────────────────────────────
+@router.post("/deploy-service-page/{article_id}")
+async def deploy_service_page_endpoint(
+    article_id: int,
+    bg: BackgroundTasks,
+    x_admin_key: str = Header(...)
+):
+    """Trigger deploy of a service page via svc_deploy.py. Runs as background task."""
+    _require_admin(x_admin_key)
+    db = _db()
+    try:
+        row = db.execute(sqlt(
+            "SELECT id, slug, content_type FROM ai_generated_articles WHERE id=:id"
+        ), {"id": article_id}).fetchone()
+        if not row:
+            raise HTTPException(404, "Page not found")
+        if row[2] != "service_page":
+            raise HTTPException(400, "Not a service page")
+    finally:
+        db.close()
+
+    async def _run_deploy(aid: int):
+        import subprocess as _sp, os as _os
+        script = "/home/ec2-user/svc_deploy.py"
+        # Patch the script to deploy only this article_id
+        patch_cmd = (
+            f"import sys; sys.path.insert(0,'venv/lib/python3.10/site-packages'); "
+            f"exec(open(\'{script}\').read().replace('run(73)', 'run({aid})'))"
+        )
+        result = _sp.run(
+            ["python3", "-c", patch_cmd],
+            capture_output=True, timeout=120,
+            cwd="/var/www/nexabuilder/backend/current"
+        )
+        log.info(f"Service page deploy {aid}: {result.stdout.decode()[-200:]}")
+        if result.returncode != 0:
+            log.warning(f"Deploy error: {result.stderr.decode()[-200:]}")
+
+    bg.add_task(_run_deploy, article_id)
+    return {
+        "status": "deploying",
+        "article_id": article_id,
+        "message": f"Deploying page {article_id}. Check status in 30-60 seconds."
+    }
+
