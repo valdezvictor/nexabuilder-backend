@@ -1051,3 +1051,150 @@ def cslb_lookup(license_no: str = None, business_name: str = None, city: str = N
         }
     finally:
         db.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Service / Location Page Generator
+# Generates dedicated landing pages for CSLB license class + geo queries
+# e.g. "c-10 electrical contractors southern california"
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ServicePageRequest(BaseModel):
+    query:           str           # GSC query e.g. "c-10 electrical contractors southern california"
+    page_type:       str = "service_license"  # service_license | location | vertical
+    vertical:        str = "general"
+    ai_context:      str = ""      # SEO Intelligence output — Quick Wins + Content Gaps
+    cslb_license:    str = ""      # e.g. "C-10"
+    license_name:    str = ""      # e.g. "Electrical"
+    city:            str = ""      # if location page
+    impressions:     int = 0
+    avg_position:    float = 0
+
+@router.post("/generate-service-page")
+async def generate_service_page(
+    payload: ServicePageRequest,
+    x_admin_key: str = Header(...)
+):
+    """Generate a service or location page optimized for CSLB license + geo queries."""
+    _require_admin(x_admin_key)
+    import anthropic as _ant, re as _re
+
+    slug = _re.sub(r"[^a-z0-9]+", "-",
+        payload.query.lower()[:80]).strip("-")
+
+    # Build system prompt based on page type
+    system_prompt = (
+        "You are a Southern California contractor matching platform content specialist. "
+        "Write service landing pages for NexaBuilder.com that rank for CSLB license class + "
+        "geographic queries. Pages must: (1) immediately signal CSLB verification credibility, "
+        "(2) list service areas with city-level specificity, (3) explain what the license class "
+        "covers in plain language, (4) answer the top homeowner questions about hiring this trade, "
+        "(5) include a strong CTA to /get-quote/. "
+        "Tone: confident, direct, SoCal-specific. Grade 8 reading level. Active voice. "
+        "Return ONLY the HTML body content — h1, h2, p, ul, table tags. No wrappers."
+    )
+
+    # Build context from SEO Intelligence if available
+    ai_context_block = ""
+    if payload.ai_context:
+        ai_context_block = f"""
+SEO Intelligence context (use to inform content decisions):
+{payload.ai_context[:1500]}
+"""
+
+    license_block = ""
+    if payload.cslb_license:
+        license_block = f"""
+CSLB License Class: {payload.cslb_license} ({payload.license_name})
+Include: what work this license covers, why CSLB verification matters, 
+how NexaBuilder pre-verifies all contractors.
+"""
+
+    city_block = f"Primary city/region: {payload.city}" if payload.city else         "Geographic scope: Southern California (LA County, Orange County, San Diego County, Riverside County, San Bernardino County)"
+
+    user_prompt = f"""Generate a service landing page.
+
+Target query: {payload.query}
+Vertical: {payload.vertical}
+{city_block}
+{license_block}
+Current GSC position: {payload.avg_position:.1f} with {payload.impressions} impressions, 0 clicks.
+Goal: earn the click from searchers who already know what this license class means.
+{ai_context_block}
+
+Page structure required:
+1. H1 — include the license class verbatim, geographic area, and CSLB verification signal
+2. Opening paragraph — 40-60 word direct answer matching search intent exactly
+3. H2: "What {payload.cslb_license or payload.vertical.title()} Contractors Do" — scope of work, 3-4 bullet points
+4. H2: "Southern California Service Areas" — specific counties and 6-8 cities
+5. H2: "How NexaBuilder Verifies {payload.cslb_license or ''} Contractors" — CSLB check, insurance, background
+6. H2: "Common Questions" — 3 Q&A pairs matching searcher intent
+7. CTA section — link to /get-quote/ with benefit-focused copy
+
+Internal links: include 2-3 links to /services/, /guides/verify-cslb-license/, /get-quote/
+Word count target: 600-800 words.
+Return ONLY the HTML body content."""
+
+    client = _ant.AsyncAnthropic()
+    msg = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}]
+    )
+    body_html = msg.content[0].text.strip()
+
+    # Build title and meta
+    title = payload.query.title()
+    if payload.cslb_license and payload.cslb_license.upper() not in title.upper():
+        title = f"{payload.cslb_license} {payload.license_name} Contractors Southern California"
+    meta_desc = (
+        f"Find CSLB-verified {payload.cslb_license} {payload.license_name} contractors "
+        f"in Southern California. Licensed, background-checked, free quotes."
+    )[:157]
+
+    db = _db()
+    try:
+        row = db.execute(sqlt("""
+            INSERT INTO ai_generated_articles
+              (title, slug, body_html, meta_description, primary_keyword,
+               status, generation_tokens, writing_profile_id, content_type, source)
+            VALUES (:title, :slug, :body, :meta, :kw, 'DRAFT', :tokens, 1, 'service_page', 'page_generator')
+            RETURNING id
+        """), {
+            "title":  title[:255],
+            "slug":   slug,
+            "body":   body_html,
+            "meta":   meta_desc,
+            "kw":     payload.query,
+            "tokens": msg.usage.input_tokens + msg.usage.output_tokens,
+        }).fetchone()
+        db.commit()
+        page_id = row[0]
+
+        # Mark in topic discoveries if it came from there
+        db.execute(sqlt("""
+            INSERT INTO seo_topic_discoveries
+              (tenant_id, seed_keyword, discovered_query, intent_category,
+               impressions, clicks, avg_position, source, is_processed_to_article)
+            VALUES ('nexabuilder', :seed, :q, 'service_page',
+                    :imp, 0, :pos, 'page_generator', true)
+            ON CONFLICT (tenant_id, discovered_query)
+            DO UPDATE SET is_processed_to_article=true
+        """), {
+            "seed": (payload.cslb_license or payload.query.split()[0]),
+            "q":    payload.query,
+            "imp":  payload.impressions,
+            "pos":  payload.avg_position,
+        })
+        db.commit()
+
+        return {
+            "success": True,
+            "page_id": page_id,
+            "slug":    slug,
+            "title":   title,
+            "word_count": len(_re.sub(r"<[^>]+>", " ", body_html).split()),
+        }
+    finally:
+        db.close()
