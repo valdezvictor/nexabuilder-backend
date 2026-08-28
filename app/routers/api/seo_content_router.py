@@ -590,8 +590,9 @@ async def list_generated_articles(x_admin_key: str = Header(...)):
                    CASE WHEN body_html IS NOT NULL THEN true ELSE false END AS has_body,
                    LEFT(body_html, 2000) AS body_preview
             FROM ai_generated_articles
+            WHERE content_type != 'service_page' AND (source IS NULL OR source != 'page_generator')
             ORDER BY created_at DESC
-            LIMIT 50
+            LIMIT 100
         """)).fetchall()
         return {"articles": [dict(r._mapping) for r in rows]}
     finally:
@@ -1198,3 +1199,27 @@ Return ONLY the HTML body content."""
         }
     finally:
         db.close()
+
+
+# ── Service Pages List ─────────────────────────────────────────────────────────
+@router.get("/pages")
+async def list_service_pages(x_admin_key: str = Header(...)):
+    """List all service pages (content_type=service_page) with status and deploy info."""
+    _require_admin(x_admin_key)
+    db = _db()
+    try:
+        rows = db.execute(sqlt("""
+            SELECT id, title, slug, primary_keyword, status,
+                   content_type, source, generation_tokens,
+                   created_at, completed_at, published_at,
+                   LEFT(meta_description, 160) AS meta_description,
+                   last_review_score, verified_complete,
+                   CASE WHEN body_html IS NOT NULL THEN true ELSE false END AS has_body
+            FROM ai_generated_articles
+            WHERE content_type = 'service_page' OR source = 'page_generator'
+            ORDER BY created_at DESC
+        """)).fetchall()
+        return {"pages": [dict(r._mapping) for r in rows], "total": len(rows)}
+    finally:
+        db.close()
+
