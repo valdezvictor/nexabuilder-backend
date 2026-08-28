@@ -949,7 +949,34 @@ async def apply_suggestions(article_id: int, x_admin_key: str = Header(...)):
         raise HTTPException(400, "No review notes found. Run AI Review first.")
     body_html = d.get("body_html") or ""
     nl = chr(10)
-    link_list = ("[verify CSLB license](/guides/verify-cslb-license/), ""[get free contractor quotes](/get-quote/), ""[pool installation](/services/pool-installation/), ""[licensed roofing contractors](/services/roofing/), ""[licensed electricians](/services/electrical/), ""[Los Angeles home improvement](/locations/los-angeles/), ""[Orange County contractors](/locations/orange-county/), ""[home remodeling contractors](/services/home-remodeling/), ""[San Diego contractors](/locations/san-diego/)")
+    # Detect content_type to use correct link strategy
+    content_type = d.get("content_type", "comparison_article")
+    is_service_page = content_type == "service_page" or d.get("source") == "page_generator"
+    if is_service_page:
+        # Service pages: link to sibling services + location pages + CSLB guide
+        # Do NOT link to blog/informational content — keeps users in conversion flow
+        link_list = ("[verify any contractor license at CSLB.ca.gov](/guides/verify-cslb-license/), "
+            "[get free contractor quotes](/get-quote/), "
+            "[all Southern California services](/services/), "
+            "[licensed pool contractors](/services/pool-installation/), "
+            "[licensed roofing contractors](/services/roofing/), "
+            "[licensed electricians](/services/electrical/), "
+            "[licensed plumbers](/services/plumbing/), "
+            "[HVAC contractors](/services/hvac-contractors/), "
+            "[landscaping contractors](/services/landscaping/), "
+            "[Los Angeles contractors](/locations/los-angeles/), "
+            "[Orange County contractors](/locations/orange-county/), "
+            "[San Diego contractors](/locations/san-diego/)")
+    else:
+        link_list = ("[verify CSLB license](/guides/verify-cslb-license/), "
+            "[get free contractor quotes](/get-quote/), "
+            "[pool installation](/services/pool-installation/), "
+            "[licensed roofing contractors](/services/roofing/), "
+            "[licensed electricians](/services/electrical/), "
+            "[Los Angeles home improvement](/locations/los-angeles/), "
+            "[Orange County contractors](/locations/orange-county/), "
+            "[home remodeling contractors](/services/home-remodeling/), "
+            "[San Diego contractors](/locations/san-diego/)")
     # Deterministic Quick Answer word-count fix BEFORE calling Claude
     _qa_re = _re2.compile(
         r'(<(?:blockquote|div)[^>]*>\s*<p[^>]*>\s*<strong>Quick\s*Answer:\s*</strong>)(.*?)(</p>\s*</(?:blockquote|div)>)',
@@ -967,7 +994,8 @@ async def apply_suggestions(article_id: int, x_admin_key: str = Header(...)):
             )
         elif len(_qa_words) < 40:
             pass  # Claude will expand it per the review notes
-    prompt = ("You are a Southern California home improvement content editor working on NexaBuilder.com." + nl+ "PATCH the article below based on the CDM review notes. Make ONLY the specific fixes noted." + nl+ "Preserve all existing content, structure, voice, and facts not mentioned in the notes." + nl+ "If the article is contractor-facing, keep that voice — do not convert it to homeowner-facing." + nl+ "Fix each bullet point in the review notes exactly as specified. Do not add unrequested changes." + nl + "Add 3-5 internal links where relevant: " + link_list + nl + nl + "CURRENT CDM SCORE: " + str(score) + "/100" + nl + "REVIEW NOTES (address each point):" + nl + review_notes[:4000] + nl + nl + "TITLE: " + (d.get("title") or "") + nl + "KEYWORD: " + (d.get("primary_keyword") or "") + nl + nl + "CURRENT ARTICLE HTML:" + nl + body_html[:12000] + nl + nl + "Return ONLY the patched full HTML body. No markdown fences. No html/head/body wrappers.")
+    page_type_note = ("This is a SERVICE/CONVERSION page — users are ready to hire a contractor. ""Link ONLY to sibling service pages, location pages, or the CSLB verification guide. ""Do NOT link to blog articles or informational content. ""3 well-placed links is optimal for a conversion page. ""Do not add unnecessary links just to hit a count." if is_service_page else "")
+    prompt = ("You are a Southern California home improvement content editor working on NexaBuilder.com." + nl + page_type_note + nl + "PATCH the article below based on the CDM review notes. Make ONLY the specific fixes noted." + nl+ "Preserve all existing content, structure, voice, and facts not mentioned in the notes." + nl+ "If the article is contractor-facing, keep that voice — do not convert it to homeowner-facing." + nl+ "Fix each bullet point in the review notes exactly as specified. Do not add unrequested changes." + nl + "Add 3 targeted internal links: " + link_list + nl + nl + "CURRENT CDM SCORE: " + str(score) + "/100" + nl + "REVIEW NOTES (address each point):" + nl + review_notes[:4000] + nl + nl + "TITLE: " + (d.get("title") or "") + nl + "KEYWORD: " + (d.get("primary_keyword") or "") + nl + nl + "CURRENT ARTICLE HTML:" + nl + body_html[:12000] + nl + nl + "Return ONLY the patched full HTML body. No markdown fences. No html/head/body wrappers.")
     client = _ant.AsyncAnthropic()
     msg = await client.messages.create(model="claude-sonnet-4-6", max_tokens=6000, messages=[{"role": "user", "content": prompt}])
     new_body = msg.content[0].text.strip()
@@ -1222,4 +1250,51 @@ async def list_service_pages(x_admin_key: str = Header(...)):
         return {"pages": [dict(r._mapping) for r in rows], "total": len(rows)}
     finally:
         db.close()
+
+
+
+# ── Service Page AI Chat ───────────────────────────────────────────────────────
+from pydantic import BaseModel as _BM
+
+class ChatRequest(_BM):
+    question: str
+    cslb_license: str = ""
+    license_name: str = ""
+    vertical: str = "general"
+    page_path: str = ""
+
+@router.post("/ai-chat/service-page")
+async def service_page_chat(payload: ChatRequest, x_admin_key: str = Header(None)):
+    """Answer homeowner questions about hiring contractors — powers the on-page AI chat widget."""
+    import anthropic as _ant
+    nl = "\n"
+    system = (
+        "You are a knowledgeable home improvement advisor for NexaBuilder.com, "
+        "Southern California\'s CSLB-verified contractor matching platform. "
+        f"The homeowner is on a page about {payload.cslb_license} ({payload.license_name}) contractors. "
+        "Answer concisely (2-4 sentences max) in a helpful, direct tone. "
+        "Always mention CSLB verification where relevant. "
+        "If asked about cost, give SoCal-specific ranges. "
+        "If asked about permits, cite the relevant California code or jurisdiction. "
+        "If the user is ready to hire, encourage them to get a free quote through NexaBuilder. "
+        "Never recommend specific competitors. "
+        "Do not make up license numbers or contractor names."
+    )
+    user_msg = (
+        f"The homeowner is on nexabuilder.com{payload.page_path} "
+        f"looking for {payload.cslb_license} {payload.license_name} contractors in Southern California.{nl}"
+        f"Their question: {payload.question}"
+    )
+    client = _ant.AsyncAnthropic()
+    msg = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=300,
+        system=system,
+        messages=[{"role": "user", "content": user_msg}]
+    )
+    answer = msg.content[0].text.strip()
+    return {
+        "answer": answer,
+        "tokens": msg.usage.input_tokens + msg.usage.output_tokens
+    }
 
