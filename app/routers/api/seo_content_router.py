@@ -1280,6 +1280,35 @@ async def service_page_chat(payload: ChatRequest, x_admin_key: str = Header(None
         "Never recommend specific competitors. "
         "Do not make up license numbers or contractor names."
     )
+    # Topic guard — only answer construction/NexaBuilder questions
+    _ALLOWED_TOPICS = {
+        'contractor','license','cslb','permit','cost','price','quote','hire',
+        'electrical','plumbing','roofing','pool','hvac','landscaping','remodel',
+        'construction','home improvement','adu','inspection','insurance','bond',
+        'estimate','project','install','repair','replace','build','nexabuilder',
+        'southern california','los angeles','orange county','san diego','socal',
+        'c-10','c-27','c-36','c-39','c-53','c-20','verified','background check',
+        'general contractor','subcontractor','licensed','unlicensed',
+        'kitchen','bathroom','addition','solar','painting','flooring','drywall',
+        'foundation','concrete','fence','deck','patio','garage','roof','drain',
+        'water heater','panel','wiring','circuit','duct','ac','furnace',
+        'irrigation','sod','hardscape','tree','grading','excavation',
+    }
+    q_lower = payload.question.lower()
+    topic_hit = any(kw in q_lower for kw in _ALLOWED_TOPICS)
+
+    if not topic_hit:
+        return {
+            "answer": (
+                f"I can only answer questions about hiring {payload.cslb_license} "
+                f"{payload.license_name} contractors in Southern California, "
+                "CSLB license verification, project costs, permits, and NexaBuilder services. "
+                "What would you like to know about your home improvement project?"
+            ),
+            "tokens": 0,
+            "off_topic": True
+        }
+
     user_msg = (
         f"The homeowner is on nexabuilder.com{payload.page_path} "
         f"looking for {payload.cslb_license} {payload.license_name} contractors in Southern California.{nl}"
