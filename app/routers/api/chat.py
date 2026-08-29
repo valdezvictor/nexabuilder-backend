@@ -180,6 +180,25 @@ def check_profanity(text: str) -> bool:
     words = set(re.findall(r"\b\w+\b", text.lower()))
     return bool(words & PROFANITY)
 
+
+def is_gibberish(text):
+    t = text.lower().strip()
+    if len(t) < 2: return False
+    vowels = sum(1 for c in t if c in 'aeiou')
+    if len(t) > 3 and vowels / len(t) < 0.15: return True
+    if re.search(r'[bcdfghjklmnpqrstvwxyz]{6,}', t): return True
+    if re.search(r'(.){3,}', t): return True
+    for run in ['asdf','qwer','zxcv','hjkl','uiop','abcd','1234']:
+        if run in t: return True
+    return False
+
+def is_valid_contact(contact):
+    c = contact.strip()
+    if '@' in c and re.search(r'@[\w-]+\.[a-z]{2,}', c, re.I): return True
+    digits = re.sub(r'\D', '', c)
+    return len(digits) >= 10
+
+
 def score_topic_relevance(text: str) -> int:
     """Returns count of topic keyword matches."""
     lower = text.lower()
@@ -294,10 +313,10 @@ async def create_session(body: ChatSessionInit, request: Request):
     name    = sanitize_input(body.visitor_name or "")
     contact = sanitize_input(body.contact or "")
 
-    if len(name) < 2:
-        raise HTTPException(400, "Please enter your name.")
-    if len(contact) < 7:
-        raise HTTPException(400, "Please enter a valid phone or email.")
+    if len(name) < 2 or is_gibberish(name):
+        raise HTTPException(400, "Please enter your real first and last name.")
+    if not is_valid_contact(contact):
+        raise HTTPException(400, "Please enter a valid phone number (10+ digits) or email.")
     if check_spam(name) or check_spam(contact):
         raise HTTPException(400, "Invalid input.")
     if check_profanity(name):
