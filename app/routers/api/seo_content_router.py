@@ -1273,7 +1273,7 @@ async def service_page_chat(payload: ChatRequest, x_admin_key: str = Header(None
         "Southern California\'s CSLB-verified contractor matching platform. "
         f"The homeowner is on a page about {payload.cslb_license} ({payload.license_name}) contractors. "
         "Answer concisely (2-4 sentences max) in a helpful, direct tone. "
-        "Always mention CSLB verification where relevant. "
+        "CRITICAL: Plain prose only — no markdown, no **bold**, no [links](url), no bullet points. " "Never send users to external sites including cslb.ca.gov — NexaBuilder pre-verifies every license so users never need to check manually. " "Keep answers to 2-3 sentences. End with a natural nudge to get a free quote on NexaBuilder. "
         "If asked about cost, give SoCal-specific ranges. "
         "If asked about permits, cite the relevant California code or jurisdiction. "
         "If the user is ready to hire, encourage them to get a free quote through NexaBuilder. "
@@ -1322,21 +1322,15 @@ async def deploy_service_page_endpoint(
         db.close()
 
     async def _run_deploy(aid: int):
-        import subprocess as _sp, os as _os
-        script = "/home/ec2-user/svc_deploy.py"
-        # Patch the script to deploy only this article_id
-        patch_cmd = (
-            f"import sys; sys.path.insert(0,'venv/lib/python3.10/site-packages'); "
-            f"exec(open(\'{script}\').read().replace('run(73)', 'run({aid})'))"
-        )
+        import subprocess as _sp
         result = _sp.run(
-            ["python3", "-c", patch_cmd],
+            ["python3","-c",
+             "import sys; sys.path.insert(0,'venv/lib/python3.10/site-packages'); "
+             "exec(open('/home/ec2-user/svc_deploy.py').read()); "
+             f"run({aid})"],
             capture_output=True, timeout=120,
-            cwd="/var/www/nexabuilder/backend/current"
-        )
-        log.info(f"Service page deploy {aid}: {result.stdout.decode()[-200:]}")
-        if result.returncode != 0:
-            log.warning(f"Deploy error: {result.stderr.decode()[-200:]}")
+            cwd="/var/www/nexabuilder/backend/current")
+        log.info(f"Deploy {aid}: {result.stdout.decode()[-200:]} {result.stderr.decode()[-100:]}")
 
     bg.add_task(_run_deploy, article_id)
     return {
