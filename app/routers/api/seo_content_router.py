@@ -1246,10 +1246,38 @@ async def list_service_pages(x_admin_key: str = Header(...)):
                    last_review_score, verified_complete,
                    CASE WHEN body_html IS NOT NULL THEN true ELSE false END AS has_body
             FROM ai_generated_articles
-            WHERE content_type = 'service_page' OR source = 'page_generator'
+            WHERE content_type = 'service_page' OR source = 'page_generator' OR source = 'imported'
             ORDER BY created_at DESC
         """)).fetchall()
-        return {"pages": [dict(r._mapping) for r in rows], "total": len(rows)}
+        db_pages = [dict(r._mapping) for r in rows]
+        db_slugs = {p["slug"] for p in db_pages}
+        # Scan S3 for legacy pages not in DB
+        import boto3 as _b3
+        s3 = _b3.client("s3", region_name="us-west-1")
+        BKT = "nexabuilder-root-site-979841141166-us-west-1-an"
+        s3r = s3.list_objects_v2(Bucket=BKT, Prefix="services/", Delimiter="/")
+        legacy = []
+        for pref in s3r.get("CommonPrefixes", []):
+            slug = pref["Prefix"].replace("services/","").strip("/")
+            if slug and slug not in db_slugs:
+                gsc = db.execute(sqlt(
+                    "SELECT SUM(impressions),SUM(clicks),ROUND(AVG(position)::numeric,1) "
+                    "FROM gsc_keywords WHERE page LIKE :p"
+                ), {"p": f"%/services/{slug}/%"}).fetchone()
+                legacy.append({
+                    "id": None, "slug": slug, "source": "legacy_s3",
+                    "title": slug.replace("-"," ").title() + " (Legacy)",
+                    "primary_keyword": slug.replace("-"," "),
+                    "status": "PUBLISHED", "content_type": "service_page",
+                    "generation_tokens": 0, "created_at": None, "completed_at": None,
+                    "published_at": None, "meta_description": None,
+                    "last_review_score": None, "verified_complete": False,
+                    "has_body": True, "is_legacy": True,
+                    "gsc_impressions": int(gsc[0] or 0) if gsc else 0,
+                })
+        legacy.sort(key=lambda x: -(x.get("gsc_impressions") or 0))
+        all_pages = db_pages + legacy
+        return {"pages": all_pages, "total": len(all_pages), "legacy_count": len(legacy)}
     finally:
         db.close()
 
