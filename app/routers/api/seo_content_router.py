@@ -1434,7 +1434,8 @@ async def recovery_review_page(payload: dict, x_admin_key: str = Header(...)):
             body_html=bm.group(1) if bm else ph
             tm=_re.search(r'<title>(.*?)</title>',ph,_re.S|_re.I)
             title=_re.sub(r'<[^>]+>','',tm.group(1)).strip() if tm else ''
-            mm=_re.search(r'name=[^>]{0,30}description[^>]{0,60}content=[^"]{0,3}([^"]{1,200})',ph,_re.I)
+            mm=_re.search(r'name=["\']description["\'][^>]+content=["\']([^"\']{1,300})',ph,_re.I)
+            if not mm: mm=_re.search(r'content=["\']([^"\']{1,300})["\'][^>]+name=["\']description',ph,_re.I)
             meta_desc=mm.group(1).strip()[:155] if mm else ''
         except Exception as e: return {'error':str(e),'s3_key':s3k}
     if not body_html: return {'error':'No content found'}
@@ -1486,3 +1487,85 @@ async def recovery_apply_ctr_fix(article_id:int,payload:dict,x_admin_key:str=Hea
         db.commit()
         return {'success':True,'updated':list(fields.keys()),'article_id':article_id}
     finally: db.close()
+
+@router.post('/recovery/apply-s3-fix')
+async def recovery_apply_s3_fix(payload: dict, x_admin_key: str = Header(...)):
+    # Patch title and meta directly in an S3 static HTML file, then CF invalidate
+    _require_admin(x_admin_key)
+    import re as _re, boto3 as _b3, time as _t
+    page_url      = payload.get('url', '')
+    new_title     = payload.get('title', '')
+    new_meta      = payload.get('meta_description', '')
+    top_queries   = payload.get('top_queries', [])
+    review_score  = payload.get('review_score')
+    review_notes  = payload.get('review_notes', '')
+    BKT = 'nexabuilder-root-site-979841141166-us-west-1-an'
+    CF  = 'EDLQAZ1IS2WIG'
+    # Derive S3 key from URL
+    path = page_url.replace('https://www.nexabuilder.com','').replace('https://nexabuilder.com','').strip('/')
+    s3_key = (path + '/index.html') if path else 'index.html'
+    s3 = _b3.client('s3', region_name='us-west-1')
+    # Fetch current page
+    try:
+        obj = s3.get_object(Bucket=BKT, Key=s3_key)
+        html = obj['Body'].read().decode('utf-8')
+    except Exception as e:
+        raise HTTPException(404, f'S3 page not found: {s3_key} — {e}')
+    original_title = ''
+    original_meta  = ''
+    # Extract originals for the audit record
+    tm = _re.search(r'<title>(.*?)</title>', html, _re.S|_re.I)
+    if tm: original_title = _re.sub(r'<[^>]+>','',tm.group(1)).strip()
+    mm = _re.search(r'<meta[^>]+name=.{0,1}description.{0,1}[^>]+/?>', html, _re.I)
+    if mm: original_meta = mm.group(0)
+    patched = html
+    # Patch title
+    if new_title:
+        patched = _re.sub(r'<title>.*?</title>', f'<title>{new_title}</title>', patched, flags=_re.S|_re.I, count=1)
+    # Patch or inject meta description
+    if new_meta:
+        new_meta_tag = f'<meta name="description" content="{new_meta}">'
+        if _re.search(r'<meta[^>]+name=.{0,1}description.{0,1}', patched, _re.I):
+            patched = _re.sub(r'<meta[^>]+name=.{0,1}description.{0,1}[^>]+/?>', new_meta_tag, patched, flags=_re.I, count=1)
+        else:
+            # Inject after <title> tag
+            patched = _re.sub(r'(</title>)', r'\1\n  ' + new_meta_tag, patched, flags=_re.I, count=1)
+    if patched == html:
+        raise HTTPException(400, 'No changes applied — title/meta tags not found or nothing to update')
+    # Write back to S3
+    s3.put_object(Bucket=BKT, Key=s3_key, Body=patched.encode('utf-8'),
+                  ContentType='text/html', CacheControl='public, max-age=3600')
+    # CF invalidation
+    cf_cli = _b3.client('cloudfront', region_name='us-east-1')
+    try:
+        slug_path = '/' + s3_key.replace('/index.html','')
+        cf_cli.create_invalidation(DistributionId=CF, InvalidationBatch={
+            'Paths': {'Quantity': 2, 'Items': [slug_path + '/', slug_path + '/index.html']},
+            'CallerReference': str(int(_t.time()))
+        })
+        cf_invalidated = True
+    except Exception:
+        cf_invalidated = False
+    # Save to page_recovery audit table
+    db = _db()
+    try:
+        db.execute(sqlt(
+            "INSERT INTO page_recovery (page_url, s3_key, original_title, original_meta, "
+            "applied_title, applied_meta, review_score, review_notes, last_reviewed, last_applied) "
+            "VALUES (:url, :s3k, :ot, :om, :at, :am, :rs, :rn, NOW(), NOW()) "
+            "ON CONFLICT (page_url) DO UPDATE SET "
+            "applied_title=:at, applied_meta=:am, review_score=:rs, review_notes=:rn, last_applied=NOW()"
+        ), {'url': page_url, 's3k': s3_key, 'ot': original_title, 'om': original_meta[:500],
+            'at': new_title, 'am': new_meta, 'rs': review_score, 'rn': review_notes[:2000]})
+        db.commit()
+    finally:
+        db.close()
+    return {
+        'success': True,
+        's3_key': s3_key,
+        'cf_invalidated': cf_invalidated,
+        'original_title': original_title,
+        'applied_title': new_title,
+        'applied_meta': new_meta,
+        'message': f'Title and meta patched on S3. CF invalidated: {cf_invalidated}. Live in ~2 minutes.'
+    }
