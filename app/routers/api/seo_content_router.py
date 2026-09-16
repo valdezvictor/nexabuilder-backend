@@ -1439,7 +1439,12 @@ async def recovery_review_page(payload: dict, x_admin_key: str = Header(...)):
             meta_desc=mm.group(1).strip()[:155] if mm else ''
         except Exception as e: return {'error':str(e),'s3_key':s3k}
     if not body_html: return {'error':'No content found'}
-    plain=_re.sub(r'<[^>]+',' ',body_html); plain=_re.sub(r'\s+',' ',plain).strip()[:8000]
+    # Strip nav, footer, scripts, styles before extraction — reduces tokens ~60%
+    clean=body_html
+    for tag in ['nav','footer','script','style','noscript']:
+        clean=_re.sub(rf'<{tag}[^>]*>.*?</{tag}>','',clean,flags=_re.S|_re.I)
+    plain=_re.sub(r'<[^>]+',' ',clean)
+    plain=_re.sub(r'\s+',' ',plain).strip()[:6000]
     qblock=('GSC queries:\n'+chr(10).join('  - '+q for q in top_queries[:5])) if top_queries else ''
     prompt=('Review this underperforming NexaBuilder page.\n'
         f'PAGE: {page_url}\nTITLE: {title}\nMETA: {meta_desc}\n{qblock}\nCONTENT:\n{plain}\n\n'
