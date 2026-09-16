@@ -1368,3 +1368,121 @@ async def deploy_service_page_endpoint(
         "message": f"Deploying page {article_id}. Check status in 30-60 seconds."
     }
 
+
+
+# -- Page Performance Recovery Engine --
+@router.get('/recovery/candidates')
+async def get_recovery_candidates(
+    min_impressions: int = 30,
+    max_ctr: float = 0.02,
+    min_position: float = 8.0,
+    max_position: float = 70.0,
+    x_admin_key: str = Header(...)
+):
+    _require_admin(x_admin_key)
+    db = _db()
+    try:
+        rows = db.execute(sqlt(
+            'SELECT page, SUM(impressions) AS ti, SUM(clicks) AS tc,'
+            ' ROUND(AVG(ctr)::numeric*100,2) AS ctr_pct,'
+            ' ROUND(AVG(position)::numeric,1) AS pos,'
+            ' MAX(synced_at) AS ls,'
+            ' array_agg(query ORDER BY impressions DESC)'
+            ' FILTER (WHERE query IS NOT NULL) AS qs'
+            ' FROM gsc_keywords WHERE page IS NOT NULL AND impressions > 0'
+            ' GROUP BY page'
+            ' HAVING SUM(impressions)>=:min_imp'
+            ' AND ROUND(AVG(ctr)::numeric*100,2)<=:max_ctr'
+            ' AND AVG(position) BETWEEN :min_pos AND :max_pos'
+            ' ORDER BY SUM(impressions) DESC LIMIT 50'
+        ), {'min_imp':min_impressions,'max_ctr':max_ctr*100,'min_pos':min_position,'max_pos':max_position}).fetchall()
+        out = []
+        for row in rows:
+            pg=row[0]; imp=int(row[1]); cl=int(row[2]); ct=float(row[3]); pos=float(row[4]); qs=list(row[6] or [])[:5]
+            pri = 'critical' if pos<=15 and ct<1 else ('high' if (pos<=30 and imp>=100) or imp>=200 else 'medium')
+            ft = []
+            if pos<=20 and ct<1: ft.append('title_meta')
+            if pos>30: ft.append('content_depth')
+            if pos<=30 and ct<1: ft.append('schema')
+            slug = pg.rstrip('/').split('/')[-1]
+            da = db.execute(sqlt('SELECT id,title,status,last_review_score FROM ai_generated_articles WHERE slug=:s LIMIT 1'),{'s':slug}).fetchone()
+            out.append({'url':pg,'slug':slug,'impressions':imp,'clicks':cl,'ctr':ct,'position':pos,'priority':pri,'fix_types':ft,'top_queries':qs,'in_cms':da is not None,'article_id':da[0] if da else None,'article_title':da[1] if da else None,'cdm_score':da[3] if da else None})
+        return {'candidates':out,'total':len(out)}
+    finally: db.close()
+
+
+@router.post('/recovery/review-page')
+async def recovery_review_page(payload: dict, x_admin_key: str = Header(...)):
+    _require_admin(x_admin_key)
+    import anthropic as _ant, re as _re, boto3 as _b3
+    page_url=payload.get('url',''); article_id=payload.get('article_id'); top_queries=payload.get('top_queries',[])
+    BKT='nexabuilder-root-site-979841141166-us-west-1-an'
+    body_html=''; title=''; meta_desc=''
+    if article_id:
+        db=_db()
+        try:
+            row=db.execute(sqlt('SELECT title,body_html,meta_description FROM ai_generated_articles WHERE id=:id'),{'id':article_id}).fetchone()
+            if row: title,body_html,meta_desc=row[0] or '',row[1] or '',row[2] or ''
+        finally: db.close()
+    else:
+        pth=page_url.replace('https://www.nexabuilder.com','').replace('https://nexabuilder.com','').strip('/')
+        s3k=(pth+'/index.html') if pth else 'index.html'
+        try:
+            s3=_b3.client('s3',region_name='us-west-1')
+            ph=s3.get_object(Bucket=BKT,Key=s3k)['Body'].read().decode('utf-8')
+            bm=_re.search(r'<(?:main|article)[^>]*>(.*?)</(?:main|article)>',ph,_re.S|_re.I)
+            body_html=bm.group(1) if bm else ph
+            tm=_re.search(r'<title>(.*?)</title>',ph,_re.S|_re.I)
+            title=_re.sub(r'<[^>]+>','',tm.group(1)).strip() if tm else ''
+            mm=_re.search(r'name=[^>]{0,30}description[^>]{0,60}content=[^"]{0,3}([^"]{1,200})',ph,_re.I)
+            meta_desc=mm.group(1).strip()[:155] if mm else ''
+        except Exception as e: return {'error':str(e),'s3_key':s3k}
+    if not body_html: return {'error':'No content found'}
+    plain=_re.sub(r'<[^>]+',' ',body_html); plain=_re.sub(r'\s+',' ',plain).strip()[:8000]
+    qblock=('GSC queries:\n'+chr(10).join('  - '+q for q in top_queries[:5])) if top_queries else ''
+    prompt=('Review this underperforming NexaBuilder page.\n'
+        f'PAGE: {page_url}\nTITLE: {title}\nMETA: {meta_desc}\n{qblock}\nCONTENT:\n{plain}\n\n'
+        'Output EXACTLY:\nSCORE: [n/100]\nREADER_VALUE: [n/20]\nFACTUAL_ACCURACY: [n/20]\n'
+        'SEARCH_INTENT: [n/15]\nEEAT: [n/15]\nSTRUCTURE: [n/10]\nREADABILITY: [n/10]\n'
+        'INTERNAL_LINKS: [n/10]\nCTR_DIAGNOSIS: [why no clicks, 1-2 sentences]\n'
+        'TITLE_REWRITE: [new title under 60 chars]\nMETA_REWRITE: [new meta under 155 chars]\n'
+        'FIXES:\n- [fix1]\n- [fix2]\n- [fix3]\n- [fix4]')
+    client=_ant.AsyncAnthropic()
+    msg=await client.messages.create(model='claude-sonnet-4-6',max_tokens=1200,
+        system='You are a senior SEO editor specializing in CTR recovery. Plain text only, no markdown.',
+        messages=[{'role':'user','content':prompt}])
+    raw=msg.content[0].text.strip()
+    def ext(pat,txt,dflt=''):
+        m=_re.search(pat,txt,_re.I|_re.M)
+        return m.group(1).strip() if m else dflt
+    score=int(ext(r'SCORE:\s*(\d+)',raw) or 0)
+    ctr_diag=ext(r'CTR_DIAGNOSIS:\s*(.{1,400})',raw)
+    title_rw=ext(r'TITLE_REWRITE:\s*(.{1,200})',raw)
+    meta_rw=ext(r'META_REWRITE:\s*(.{1,300})',raw)
+    fixes=[l.lstrip('-. ').strip() for l in raw.split('\n') if l.strip().startswith('-') and len(l.strip())>5]
+    scores={dim.lower():int(ext(rf'{dim}:\s*(\d+)',raw) or 0) for dim in ['READER_VALUE','FACTUAL_ACCURACY','SEARCH_INTENT','EEAT','STRUCTURE','READABILITY','INTERNAL_LINKS']}
+    if article_id and score:
+        db=_db()
+        try:
+            note=f'RECOVERY\nCTR: {ctr_diag}\nTITLE: {title_rw}\nMETA: {meta_rw}\nFIXES:\n'+chr(10).join(f'- {f}' for f in fixes)
+            db.execute(sqlt('UPDATE ai_generated_articles SET last_review_score=:s,review_notes=:n WHERE id=:id'),{'s':score,'n':note,'id':article_id})
+            db.commit()
+        finally: db.close()
+    return {'url':page_url,'title':title,'meta':meta_desc,'score':score,'scores':scores,'ctr_diagnosis':ctr_diag,'title_rewrite':title_rw,'meta_rewrite':meta_rw,'fixes':fixes,'tokens':msg.usage.input_tokens+msg.usage.output_tokens}
+
+
+@router.post('/recovery/apply-ctr-fix/{article_id}')
+async def recovery_apply_ctr_fix(article_id:int,payload:dict,x_admin_key:str=Header(...)):
+    _require_admin(x_admin_key)
+    db=_db()
+    try:
+        fields={}
+        if payload.get('title'): fields['title']=payload['title']
+        if payload.get('meta_description'): fields['meta_description']=payload['meta_description']
+        if not fields: raise HTTPException(400,'No fields to update')
+        set_clause=', '.join(f'{k}=:{k}' for k in fields)
+        fields['id']=article_id
+        db.execute(sqlt(f'UPDATE ai_generated_articles SET {set_clause} WHERE id=:id'),fields)
+        db.commit()
+        return {'success':True,'updated':list(fields.keys()),'article_id':article_id}
+    finally: db.close()
