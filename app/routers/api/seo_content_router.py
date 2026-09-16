@@ -1419,13 +1419,13 @@ async def get_recovery_candidates(
             ' MAX(synced_at) AS ls,'
             ' array_agg(query ORDER BY impressions DESC)'
             ' FILTER (WHERE query IS NOT NULL) AS qs'
-            ' FROM gsc_keywords WHERE page IS NOT NULL AND impressions > 0'
+            ' FROM gsc_keywords'' WHERE page IS NOT NULL AND impressions > 0'' AND page LIKE :page_prefix'' AND page NOT SIMILAR TO :legacy_exclude'
             ' GROUP BY page'
             ' HAVING SUM(impressions)>=:min_imp'
             ' AND ROUND(AVG(ctr)::numeric*100,2)<=:max_ctr'
             ' AND AVG(position) BETWEEN :min_pos AND :max_pos'
             ' ORDER BY SUM(impressions) DESC LIMIT 50'
-        ), {'min_imp':min_impressions,'max_ctr':max_ctr*100,'min_pos':min_position,'max_pos':max_position}).fetchall()
+        ), {'min_imp':min_impressions,'max_ctr':max_ctr*100,'min_pos':min_position,'max_pos':max_position,'page_prefix':'https://www.nexabuilder.com/%','legacy_exclude':'%(roofing|home-remodeling|pool-installation|bathroom-remodel|landscaping|electrical|plumbing|hvac|hvac-contractors|electrical-contractors|general-contractors|landscaping-contractors|plumbing-contractors|roofing-contractors)/'}).fetchall()
         out = []
         for row in rows:
             pg=row[0]; imp=int(row[1]); cl=int(row[2]); ct=float(row[3]); pos=float(row[4]); qs=list(row[6] or [])[:5]
