@@ -1605,7 +1605,7 @@ async def recovery_apply_full_fix(
 
 
 async def _run_full_fix_job(job_id: str, payload: dict):
-    import re as _re, boto3 as _b3, time as _t, anthropic as _ant
+    import re as _re, boto3 as _b3, time as _t, anthropic as _ant, json as _json
     page_url    = payload.get('url', '')
     fixes       = payload.get('fixes', [])
     title       = payload.get('title', '')
@@ -1620,7 +1620,7 @@ async def _run_full_fix_job(job_id: str, payload: dict):
         try:
             db2.execute(sqlt(
                 "UPDATE recovery_jobs SET status=:s, result=:r, error=:e, updated_at=NOW() WHERE job_id=:jid"
-            ), {'s': status, 'r': json.dumps(result) if result else None, 'e': error, 'jid': job_id})
+            ), {'s': status, 'r': _json.dumps(result) if result else None, 'e': error, 'jid': job_id})
             db2.commit()
         finally:
             db2.close()
