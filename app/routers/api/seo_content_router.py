@@ -589,7 +589,8 @@ async def list_generated_articles(x_admin_key: str = Header(...)):
                    generation_tokens, created_at, completed_at,
                    LEFT(meta_description, 160) AS meta_description,
                    CASE WHEN body_html IS NOT NULL THEN true ELSE false END AS has_body,
-                   LEFT(body_html, 2000) AS body_preview
+                   LEFT(body_html, 2000) AS body_preview,
+                   last_review_score
             FROM ai_generated_articles
             WHERE content_type != 'service_page' AND (source IS NULL OR source != 'page_generator')
             ORDER BY created_at DESC
