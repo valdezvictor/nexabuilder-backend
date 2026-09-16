@@ -9,6 +9,7 @@ Implements the async queue+poll pattern from TS-SEO-AI-002:
   POST /api/seo-content/sync-gsc      — pull GSC keywords into discovery table
 """
 import os, logging, asyncio
+import json
 from datetime import datetime
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -1719,6 +1720,12 @@ async def recovery_job_status(job_id: str, x_admin_key: str = Header(...)):
     if not row:
         raise HTTPException(404, f'Job {job_id} not found')
     status, result_raw, error, updated_at = row
-    result = json.loads(result_raw) if result_raw else None
+    # JSONB columns return dict directly from SQLAlchemy — handle both
+    if result_raw is None:
+        result = None
+    elif isinstance(result_raw, dict):
+        result = result_raw
+    else:
+        result = json.loads(str(result_raw))
     return {'job_id': job_id, 'status': status, 'result': result,
             'error': error, 'updated_at': str(updated_at)}
