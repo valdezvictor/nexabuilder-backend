@@ -1576,11 +1576,36 @@ async def recovery_apply_s3_fix(payload: dict, x_admin_key: str = Header(...)):
     }
 
 
+
+# Replace apply-full-fix with async job pattern
+# Browser gets 202 + job_id immediately, polls /recovery/job/{job_id} for result
+
 @router.post('/recovery/apply-full-fix')
-async def recovery_apply_full_fix(payload: dict, x_admin_key: str = Header(...)):
-    # Fetch live page, run AI patch for all specific fixes, write back to S3
+async def recovery_apply_full_fix(
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    x_admin_key: str = Header(...)
+):
     _require_admin(x_admin_key)
-    import anthropic as _ant, re as _re, boto3 as _b3, time as _t
+    import uuid as _uuid
+    job_id = str(_uuid.uuid4())[:8]
+    # Write pending record
+    db = _db()
+    try:
+        db.execute(sqlt(
+            "INSERT INTO recovery_jobs (job_id, status, page_url) VALUES (:jid, 'pending', :url)"
+        ), {'jid': job_id, 'url': payload.get('url','')})
+        db.commit()
+    finally:
+        db.close()
+    # Fire background task — returns immediately
+    background_tasks.add_task(_run_full_fix_job, job_id, payload)
+    return {'job_id': job_id, 'status': 'pending',
+            'message': 'Job started. Poll /recovery/job/' + job_id + ' for result.'}
+
+
+async def _run_full_fix_job(job_id: str, payload: dict):
+    import re as _re, boto3 as _b3, time as _t, anthropic as _ant
     page_url    = payload.get('url', '')
     fixes       = payload.get('fixes', [])
     title       = payload.get('title', '')
@@ -1589,85 +1614,111 @@ async def recovery_apply_full_fix(payload: dict, x_admin_key: str = Header(...))
     review_score= payload.get('review_score')
     BKT = 'nexabuilder-root-site-979841141166-us-west-1-an'
     CF  = 'EDLQAZ1IS2WIG'
-    path = page_url.replace('https://www.nexabuilder.com','').replace('https://nexabuilder.com','').strip('/')
-    s3_key = (path + '/index.html') if path else 'index.html'
-    s3 = _b3.client('s3', region_name='us-west-1')
+
+    def _update(status, result=None, error=None):
+        db2 = _db()
+        try:
+            db2.execute(sqlt(
+                "UPDATE recovery_jobs SET status=:s, result=:r, error=:e, updated_at=NOW() WHERE job_id=:jid"
+            ), {'s': status, 'r': json.dumps(result) if result else None, 'e': error, 'jid': job_id})
+            db2.commit()
+        finally:
+            db2.close()
+
     try:
+        _update('running')
+        path = page_url.replace('https://www.nexabuilder.com','').replace('https://nexabuilder.com','').strip('/')
+        s3_key = (path + '/index.html') if path else 'index.html'
+        s3 = _b3.client('s3', region_name='us-west-1')
         obj = s3.get_object(Bucket=BKT, Key=s3_key)
         html = obj['Body'].read().decode('utf-8')
+        fixes_block = chr(10).join(f'{i+1}. {f}' for i,f in enumerate(fixes))
+        queries_block = ', '.join(top_queries[:5]) if top_queries else ''
+        prompt = (
+            f'You are patching a live HTML service page for NexaBuilder.com.\n'
+            f'Page URL: {page_url}\nTop GSC queries: {queries_block}\n\n'
+            f'Apply ALL of these specific fixes to the HTML:\n{fixes_block}\n\n'
+            f'RULES:\n'
+            f'1. Return ONLY the complete patched HTML. No explanation, no markdown fences.\n'
+            f'2. Make SURGICAL changes only — preserve all CSS, JS, nav, footer, chat widget.\n'
+            f'3. Trust signals: find the hero stats bar and add/update contractor count (241k+ verified CA contractors), years in business (since 2021), CSLB badge.\n'
+            f'4. Internal links: add a city/county section near the bottom with links using /locations/ URL pattern.\n'
+            f'5. FAQ: add one new entry matching the top GSC query intent. Match existing FAQ HTML structure exactly.\n'
+            f'6. ZIP input: add a ZIP code field BEFORE the primary CTA button. name=zip, placeholder=Enter your ZIP code.\n'
+            f'7. Do NOT change title, meta, or any existing CSS/JS.\n'
+            f'8. Keep page size within 15% of original ({len(html):,} chars).\n\n'
+            f'HTML:\n{html}'
+        )
+        client = _ant.AsyncAnthropic()
+        msg = await client.messages.create(
+            model='claude-sonnet-4-6', max_tokens=16000,
+            messages=[{'role':'user','content':prompt}]
+        )
+        patched = msg.content[0].text.strip()
+        patched=patched.lstrip()
+        if '```' in patched[:20]: patched=patched[patched.index('\n')+1:] if '\n' in patched[:20] else patched[3:]
+        if patched.endswith('```'): patched=patched[:-3].rstrip()
+
+
+        if title:
+            patched = _re.sub(r'<title>.*?</title>', f'<title>{title}</title>', patched, flags=_re.S|_re.I, count=1)
+        if meta:
+            new_meta = f'<meta name="description" content="{meta}">'
+            if _re.search(r'<meta[^>]+name=.description', patched, _re.I):
+                patched = _re.sub(r'<meta[^>]+name=.description[^>]+/?>', new_meta, patched, flags=_re.I, count=1)
+            else:
+                patched = _re.sub(r'(</title>)', r'\1\n  '+new_meta, patched, flags=_re.I, count=1)
+        if not (patched.strip().startswith('<!') or patched.strip().startswith('<html') or patched.strip().startswith('<!')):
+            raise ValueError(f'Non-HTML response: {patched[:80]}')
+        s3.put_object(Bucket=BKT, Key=s3_key, Body=patched.encode('utf-8'),
+                      ContentType='text/html', CacheControl='public, max-age=3600')
+        cf_cli = _b3.client('cloudfront', region_name='us-east-1')
+        cf_ok = False
+        try:
+            slug_path = '/' + s3_key.replace('/index.html','')
+            cf_cli.create_invalidation(DistributionId=CF, InvalidationBatch={
+                'Paths': {'Quantity':2,'Items':[slug_path+'/',slug_path+'/index.html']},
+                'CallerReference': str(int(_t.time()))
+            })
+            cf_ok = True
+        except Exception:
+            pass
+        # Audit record
+        db3 = _db()
+        try:
+            db3.execute(sqlt(
+                "INSERT INTO page_recovery (page_url,s3_key,applied_title,applied_meta,review_score,review_notes,last_reviewed,last_applied) "
+                "VALUES (:url,:s3k,:at,:am,:rs,:rn,NOW(),NOW()) "
+                "ON CONFLICT (page_url) DO UPDATE SET applied_title=:at,applied_meta=:am,review_score=:rs,review_notes=:rn,last_applied=NOW()"
+            ), {'url':page_url,'s3k':s3_key,'at':title,'am':meta,'rs':review_score,'rn':fixes_block})
+            db3.commit()
+        finally:
+            db3.close()
+        result = {
+            'success': True, 's3_key': s3_key, 'cf_invalidated': cf_ok,
+            'original_size': len(html), 'patched_size': len(patched),
+            'fixes_applied': len(fixes),
+            'tokens': msg.usage.input_tokens + msg.usage.output_tokens,
+            'message': f'All {len(fixes)} fixes applied. CF invalidated: {cf_ok}. Live in ~2 min.'
+        }
+        _update('done', result=result)
     except Exception as e:
-        raise HTTPException(404, f'Page not found on S3: {s3_key}')
-    if not fixes:
-        raise HTTPException(400, 'No fixes provided')
-    fixes_block = chr(10).join(f'{i+1}. {f}' for i,f in enumerate(fixes))
-    queries_block = ', '.join(top_queries[:5]) if top_queries else ''
-    prompt = (
-        f'You are patching a live HTML service page for NexaBuilder.com.\n'
-        f'Page URL: {page_url}\n'
-        f'Top GSC queries: {queries_block}\n\n'
-        f'Apply ALL of these specific fixes to the HTML below:\n{fixes_block}\n\n'
-        f'RULES:\n'
-        f'1. Return ONLY the complete patched HTML — no explanation, no markdown, no code fences.\n'
-        f'2. Make SURGICAL changes only — preserve all CSS, JS, nav, footer, chat widget, existing content.\n'
-        f'3. For trust signals: find the hero stats bar (class hero-stats or similar) and add/update contractor count, years in business, and CSLB badge.\n'
-        f'4. For internal links: add a section with city/county links (Orange County, Los Angeles, Irvine, Anaheim, Long Beach) near the bottom content area, before the footer. Use nexabuilder.com/locations/ URL pattern.\n'
-        f'5. For FAQ: add one new FAQ entry about verifying a CSLB contractor license at the end of the existing FAQ list. Format must match existing FAQ HTML structure exactly.\n'
-        f'6. For the CTA: find the primary get-quote form or CTA button. Add a ZIP code input field BEFORE the submit button with placeholder="Enter your ZIP code" and name="zip". If there is no form, wrap the CTA button in a minimal inline form.\n'
-        f'7. Do NOT change the title, meta, nav, footer, or any CSS/JS — those are handled separately.\n'
-        f'8. Keep total page size within 10% of original ({len(html):,} chars).\n\n'
-        f'HTML TO PATCH:\n{html}'
-    )
-    client = _ant.AsyncAnthropic()
-    msg = await client.messages.create(
-        model='claude-sonnet-4-6',
-        max_tokens=16000,
-        messages=[{'role':'user','content':prompt}]
-    )
-    patched_html = msg.content[0].text.strip()
-    # Strip any accidental markdown fences
-    if patched_html.startswith('```'):
-        patched_html = _re.sub(r'^```[a-z]*\n?', '', patched_html)
-        patched_html = _re.sub(r'\n?```$', '', patched_html)
-    # Apply title/meta on top if provided
-    if title:
-        patched_html = _re.sub(r'<title>.*?</title>', f'<title>{title}</title>', patched_html, flags=_re.S|_re.I, count=1)
-    if meta:
-        new_meta_tag = f'<meta name="description" content="{meta}">'
-        if _re.search(r'<meta[^>]+name=.{0,1}description', patched_html, _re.I):
-            patched_html = _re.sub(r'<meta[^>]+name=.{0,1}description[^>]+/?>', new_meta_tag, patched_html, flags=_re.I, count=1)
-        else:
-            patched_html = _re.sub(r'(</title>)', r'\1\n  ' + new_meta_tag, patched_html, flags=_re.I, count=1)
-    if not patched_html.strip().startswith('<!') and not patched_html.strip().startswith('<html'):
-        raise HTTPException(500, f'AI returned non-HTML response (first 100 chars: {patched_html[:100]})')
-    s3.put_object(Bucket=BKT, Key=s3_key, Body=patched_html.encode('utf-8'),
-                  ContentType='text/html', CacheControl='public, max-age=3600')
-    cf_cli = _b3.client('cloudfront', region_name='us-east-1')
-    try:
-        slug_path = '/' + s3_key.replace('/index.html','')
-        cf_cli.create_invalidation(DistributionId=CF, InvalidationBatch={
-            'Paths': {'Quantity': 2, 'Items': [slug_path+'/', slug_path+'/index.html']},
-            'CallerReference': str(int(_t.time()))
-        })
-        cf_invalidated = True
-    except Exception:
-        cf_invalidated = False
+        _update('error', error=str(e)[:500])
+
+
+@router.get('/recovery/job/{job_id}')
+async def recovery_job_status(job_id: str, x_admin_key: str = Header(...)):
+    _require_admin(x_admin_key)
     db = _db()
     try:
-        db.execute(sqlt(
-            'INSERT INTO page_recovery (page_url, s3_key, applied_title, applied_meta, review_score, review_notes, last_reviewed, last_applied) '
-            'VALUES (:url, :s3k, :at, :am, :rs, :rn, NOW(), NOW()) '
-            'ON CONFLICT (page_url) DO UPDATE SET applied_title=:at, applied_meta=:am, review_score=:rs, review_notes=:rn, last_applied=NOW()'
-        ), {'url':page_url,'s3k':s3_key,'at':title,'am':meta,'rs':review_score,'rn':fixes_block})
-        db.commit()
+        row = db.execute(sqlt(
+            "SELECT status, result, error, updated_at FROM recovery_jobs WHERE job_id=:jid"
+        ), {'jid': job_id}).fetchone()
     finally:
         db.close()
-    return {
-        'success': True,
-        's3_key': s3_key,
-        'cf_invalidated': cf_invalidated,
-        'original_size': len(html),
-        'patched_size': len(patched_html),
-        'fixes_applied': len(fixes),
-        'tokens': msg.usage.input_tokens + msg.usage.output_tokens,
-        'message': f'All {len(fixes)} fixes applied to live page. CF invalidated: {cf_invalidated}. Live in ~2 minutes.'
-    }
+    if not row:
+        raise HTTPException(404, f'Job {job_id} not found')
+    status, result_raw, error, updated_at = row
+    result = json.loads(result_raw) if result_raw else None
+    return {'job_id': job_id, 'status': status, 'result': result,
+            'error': error, 'updated_at': str(updated_at)}
