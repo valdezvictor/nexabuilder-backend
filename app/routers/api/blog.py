@@ -461,3 +461,322 @@ async def suggest_meta(article_id: int, payload: dict, x_admin_key: str = Header
         return _j.loads(text)
     except Exception:
         return {"seo_title":"","meta_description":text[:160]}
+
+
+# ─── MICRO-SITE ARTICLE GENERATION ─────────────────────────────────────────
+
+_SITE_PROFILES = {
+    "unapiscina":    {"name":"Una Piscina","domain":"unapiscina.com","vertical":"pool","lang":"es","cslb":"C-53","region":"Sur de California"},
+    "eelectricista": {"name":"eElectricista","domain":"eelectricista.com","vertical":"electrical","lang":"es","cslb":"C-10","region":"Sur de California"},
+    "piscinasy":     {"name":"Piscinasy","domain":"piscinasy.com","vertical":"pool","lang":"es","cslb":"C-53","region":"Sur de California"},
+    "losruferos":    {"name":"Los Ruferos","domain":"losruferos.com","vertical":"roofing","lang":"es","cslb":"C-39","region":"Sur de California"},
+    "ijardinero":    {"name":"iJardinero","domain":"ijardinero.com","vertical":"landscaping","lang":"es","cslb":"C-27","region":"Sur de California"},
+    "swimmingpul":   {"name":"SwimmingPul","domain":"swimmingpul.com","vertical":"pool","lang":"en","cslb":"C-53","region":"Southern California"},
+    "nexabuilder":   {"name":"NexaBuilder","domain":"nexabuilder.com","vertical":"general","lang":"en","cslb":"CSLB","region":"Southern California"},
+}
+
+_SITE_BUCKETS = {
+    "nexabuilder":   "nexabuilder-root-site-979841141166-us-west-1-an",
+    "unapiscina":    "unapiscina-frontend",
+    "eelectricista": "eelectricista.com",
+    "piscinasy":     "piscinasy.com",
+    "losruferos":    "losruferos.com",
+    "ijardinero":    "ijardinero.com",
+    "swimmingpul":   "swimmingpul.com",
+}
+
+
+def _build_article_prompt(site_id: str, keyword: str, title_hint: str) -> str:
+    p = _SITE_PROFILES.get(site_id, _SITE_PROFILES["nexabuilder"])
+    if p["lang"] == "es":
+        return f"""Eres un redactor SEO/AEO experto para {p["name"]} ({p["domain"]}), 
+un sitio de {p["vertical"]} en {p["region"]} para propietarios de casas.
+
+Escribe un articulo completo en espanol mexicano/californiano (informal, "tu" no "usted").
+Keyword principal: "{keyword}"
+{f"Enfoque del articulo: {title_hint}" if title_hint else ""}
+
+ESTRUCTURA REQUERIDA (HTML limpio, sin markdown):
+1. <h1> con el keyword principal (max 70 chars)
+2. Parrafo intro con bloque AEO: <div class="aeo-answer"><strong>Respuesta rapida:</strong> [respuesta directa en 40-50 palabras]</div>
+3. 4-5 secciones <h2> con contenido sustancial (al menos 150 palabras cada una)
+4. Una tabla de costos o comparacion relevante (HTML <table>)
+5. Seccion de ciudades/areas del {p["region"]} que atienden
+6. FAQ (3 preguntas con respuestas) usando <div class="faq-item">
+7. CTA final: <a href="/get-quote/">Solicita tu cotizacion gratis</a>
+
+REQUISITOS SEO:
+- 1,200-1,600 palabras totales
+- Menciona licencia {p["cslb"]} de CSLB naturalmente
+- 3-5 keywords secundarias relacionadas
+- Incluye costos reales del {p["region"]} 2026
+- Tono: como hablar con un vecino, no corporativo
+
+DEVUELVE SOLO JSON (sin markdown, sin backticks):
+{{"h1":"...","slug":"keyword-en-minusculas-con-guiones","seo_title":"...max 65 chars...","meta_description":"...150-160 chars...","primary_keyword":"{keyword}","body_html":"...HTML completo..."}}"""
+    else:
+        return f"""You are an expert SEO/AEO writer for {p["name"]} ({p["domain"]}), 
+a {p["vertical"]} site in {p["region"]} for homeowners.
+
+Write a complete article in clear, conversational English.
+Primary keyword: "{keyword}"
+{f"Article focus: {title_hint}" if title_hint else ""}
+
+REQUIRED STRUCTURE (clean HTML, no markdown):
+1. <h1> with primary keyword (max 70 chars)
+2. Intro paragraph with AEO block: <div class="aeo-answer"><strong>Quick Answer:</strong> [40-50 word direct answer]</div>
+3. 4-5 <h2> sections with substantial content (150+ words each)
+4. A relevant cost or comparison <table>
+5. Cities/areas of {p["region"]} served
+6. FAQ (3 Q&As) using <div class="faq-item">
+7. Final CTA: <a href="/get-quote/">Get your free quote</a>
+
+SEO REQUIREMENTS:
+- 1,200-1,600 words total
+- Naturally mention {p["cslb"]} CSLB license
+- 3-5 related secondary keywords
+- Include real {p["region"]} 2026 cost ranges
+- Tone: helpful homeowner guide, not corporate
+
+RETURN ONLY JSON (no markdown, no backticks):
+{{"h1":"...","slug":"primary-keyword-hyphenated","seo_title":"...max 65 chars...","meta_description":"...150-160 chars...","primary_keyword":"{keyword}","body_html":"...full HTML..."}}"""
+
+
+@router.post("/admin/{site_id}/generate")
+async def generate_article(
+    site_id: str,
+    payload: dict,
+    x_admin_key: str = Header(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a new article for a micro site using Claude."""
+    import httpx as _h, re as _re, json as _j, os as _os, re as _re2
+    _require_admin(x_admin_key)
+
+    if site_id not in _SITE_PROFILES:
+        raise HTTPException(400, f"Unknown site_id: {site_id}")
+
+    keyword    = (payload.get("keyword") or "").strip()
+    title_hint = (payload.get("title_hint") or "").strip()
+    if not keyword:
+        raise HTTPException(400, "keyword is required")
+
+    p   = _SITE_PROFILES[site_id]
+    msg = _build_article_prompt(site_id, keyword, title_hint)
+    key = _os.environ.get("ANTHROPIC_API_KEY", "")
+
+    async with _h.AsyncClient(timeout=90) as c:
+        r = await c.post("https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-sonnet-4-6", "max_tokens": 4096,
+                  "messages": [{"role": "user", "content": msg}]})
+
+    text = r.json()["content"][0]["text"].strip()
+    text = _re.sub(r"^```[a-z]*\n?|```$", "", text, flags=_re.MULTILINE).strip()
+
+    try:
+        data = _j.loads(text)
+    except Exception:
+        # Try to extract JSON from text
+        jm = _re2.search(r"\{.*\}", text, _re2.S)
+        if not jm:
+            raise HTTPException(500, "Claude did not return valid JSON")
+        data = _j.loads(jm.group(0))
+
+    slug = data.get("slug") or keyword.lower().replace(" ", "-")[:100]
+
+    # Check slug uniqueness
+    exists = await db.execute(
+        select(BlogArticle).where(BlogArticle.site_id == site_id, BlogArticle.slug == slug)
+    )
+    if exists.scalars().first():
+        slug = slug + "-2"
+
+    article = BlogArticle(
+        site_id=site_id,
+        slug=slug,
+        language=p["lang"],
+        h1=data.get("h1", keyword),
+        seo_title=data.get("seo_title", "")[:120],
+        meta_description=data.get("meta_description", "")[:320],
+        primary_keyword=keyword,
+        body_html=data.get("body_html", ""),
+        category=p["vertical"],
+        status=ArticleStatus.draft,
+        geo_region=p["region"],
+        created_by="admin-generate",
+    )
+    _auto_stats(article)
+    _auto_canonical(article)
+    db.add(article)
+    await db.commit()
+    await db.refresh(article)
+    return {"article_id": article.id, "slug": article.slug, "h1": article.h1,
+            "word_count": article.word_count, "site_id": site_id}
+
+
+@router.post("/admin/article/{article_id}/review")
+async def review_article(
+    article_id: int,
+    x_admin_key: str = Header(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """CDM-style AI review — scores the article 0-100."""
+    import httpx as _h, re as _re, json as _j, os as _os
+    _require_admin(x_admin_key)
+
+    result = await db.execute(select(BlogArticle).where(BlogArticle.id == article_id))
+    art = result.scalars().first()
+    if not art:
+        raise HTTPException(404, "Article not found")
+
+    p   = _SITE_PROFILES.get(art.site_id, _SITE_PROFILES["nexabuilder"])
+    key = _os.environ.get("ANTHROPIC_API_KEY", "")
+
+    body_text = art.body_html or ""
+    prompt = f"""Review this {p["lang"].upper()} blog article for {p["name"]} and score it 0-100.
+
+H1: {art.h1}
+Keyword: {art.primary_keyword}
+Word count: {art.word_count or 0}
+Body (first 3000 chars):
+{body_text[:3000]}
+
+Score across these dimensions (0-10 each):
+1. SEO (keyword placement, density, title/meta quality)
+2. AEO (direct answer block, FAQ section, featured snippet potential)
+3. Content depth (word count, specificity, local SoCal context)
+4. Readability (tone, structure, headers)
+5. CTA (call to action present and compelling)
+6. CSLB compliance (license mentioned: {p["cslb"]})
+7. Local relevance ({p["region"]} specifics, cities, costs)
+
+RETURN ONLY JSON:
+{{"overall_score":85,"scores":{{"seo":8,"aeo":7,"depth":9,"readability":8,"cta":8,"cslb":7,"local":9}},"notes":"...specific issues and strengths...","recommendation":"publish|needs_work|rewrite"}}"""
+
+    async with _h.AsyncClient(timeout=45) as c:
+        r = await c.post("https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-sonnet-4-6", "max_tokens": 600,
+                  "messages": [{"role": "user", "content": prompt}]})
+
+    text = r.json()["content"][0]["text"].strip()
+    text = _re.sub(r"^```[a-z]*\n?|```$", "", text, flags=_re.MULTILINE).strip()
+    try:
+        review = _j.loads(text)
+    except Exception:
+        review = {"overall_score": 70, "notes": text[:500], "recommendation": "needs_work"}
+
+    # Save score to article
+    art.modified_at = __import__("datetime").datetime.utcnow()
+    await db.commit()
+    return review
+
+
+@router.post("/admin/article/{article_id}/deploy")
+async def deploy_article(
+    article_id: int,
+    x_admin_key: str = Header(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Push a published blog article to the site's S3 bucket."""
+    import boto3 as _b3, re as _re, os as _os
+    _require_admin(x_admin_key)
+
+    result = await db.execute(select(BlogArticle).where(BlogArticle.id == article_id))
+    art = result.scalars().first()
+    if not art:
+        raise HTTPException(404, "Article not found")
+
+    bucket = _SITE_BUCKETS.get(art.site_id)
+    if not bucket:
+        raise HTTPException(400, f"No S3 bucket for {art.site_id}")
+
+    p = _SITE_PROFILES.get(art.site_id, _SITE_PROFILES["nexabuilder"])
+
+    # Get shared nav/footer from nexabuilder S3
+    s3 = _b3.client("s3", region_name="us-west-1")
+    NB_BUCKET = "nexabuilder-root-site-979841141166-us-west-1-an"
+
+    def _load(key):
+        try:
+            return s3.get_object(Bucket=NB_BUCKET, Key=key)["Body"].read().decode()
+        except Exception:
+            return ""
+
+    # Try to get existing nav/footer from the site itself first
+    try:
+        idx = s3.get_object(Bucket=bucket, Key="index.html")["Body"].read().decode()
+        nav_m = _re.search(r"<nav[^>]*>.*?</nav>", idx, _re.S|_re.I)
+        nav   = nav_m.group(0) if nav_m else _load("shared/nav.html")
+        foot_m = _re.search(r"<footer.*?</footer>", idx, _re.S|_re.I)
+        foot  = foot_m.group(0) if foot_m else _load("shared/footer.html")
+    except Exception:
+        nav  = _load("shared/nav.html")
+        foot = _load("shared/footer.html")
+
+    read_min = (art.reading_time_minutes or 5)
+    wc       = (art.word_count or 0)
+    pub_date = (art.published_at or __import__("datetime").datetime.utcnow()).strftime("%B %d, %Y")
+
+    page = f"""<!DOCTYPE html>
+<html lang="{p["lang"]}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{art.seo_title or art.h1}</title>
+  <meta name="description" content="{art.meta_description or ""}">
+  <link rel="canonical" href="https://{p["domain"]}/blog/{art.slug}/">
+  <meta property="og:title" content="{art.seo_title or art.h1}">
+  <meta property="og:description" content="{art.meta_description or ""}">
+  <meta property="og:url" content="https://{p["domain"]}/blog/{art.slug}/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{{--navy:#0a1628;--blue:#1d6fde;--gold:#c8922a;--text:#1a2332;--muted:#4a5568;--bg:#f8fafc;--border:#e2e8f0}}
+    *{{box-sizing:border-box;margin:0;padding:0}}
+    body{{font-family:"Inter",-apple-system,sans-serif;color:var(--text);background:#fff;line-height:1.7}}
+    .article-wrap{{max-width:780px;margin:0 auto;padding:40px 24px 80px}}
+    .article-meta{{font-size:13px;color:var(--muted);margin-bottom:28px;display:flex;gap:16px;flex-wrap:wrap}}
+    h1{{font-size:clamp(1.6rem,4vw,2.3rem);font-weight:800;line-height:1.25;margin-bottom:20px;color:var(--navy)}}
+    h2{{font-size:1.35rem;font-weight:700;margin:36px 0 14px;color:var(--navy)}}
+    h3{{font-size:1.1rem;font-weight:700;margin:24px 0 10px}}
+    p{{margin-bottom:16px}}
+    .aeo-answer{{background:#eff6ff;border-left:4px solid var(--blue);padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0;font-size:15px}}
+    table{{width:100%;border-collapse:collapse;margin:24px 0;font-size:14px}}
+    th{{background:var(--navy);color:#fff;padding:10px 14px;text-align:left;font-weight:600}}
+    td{{padding:9px 14px;border-bottom:1px solid var(--border)}}
+    tr:nth-child(even) td{{background:var(--bg)}}
+    .faq-item{{border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px}}
+    .faq-q{{font-weight:700;margin-bottom:6px}}
+    .faq-a{{color:var(--muted);font-size:14px}}
+    .cta-box{{background:var(--navy);color:#fff;border-radius:12px;padding:28px 24px;text-align:center;margin:40px 0}}
+    .cta-box h3{{color:#fff;font-size:1.3rem;margin-bottom:10px}}
+    .cta-box a{{display:inline-block;background:var(--gold);color:#fff;padding:12px 28px;border-radius:8px;font-weight:700;text-decoration:none;margin-top:12px}}
+    ul,ol{{padding-left:20px;margin-bottom:16px}}
+    li{{margin-bottom:6px}}
+  </style>
+</head>
+<body>
+  {nav}
+  <main class="article-wrap">
+    <h1>{art.h1}</h1>
+    <div class="article-meta">
+      <span>📅 {pub_date}</span>
+      <span>⏱ {read_min} min {"de lectura" if p["lang"]=="es" else "read"}</span>
+      <span>📝 {wc:,} {"palabras" if p["lang"]=="es" else "words"}</span>
+    </div>
+    {art.body_html or ""}
+  </main>
+  {foot}
+</body>
+</html>"""
+
+    key = f"blog/{art.slug}/index.html"
+    s3.put_object(Bucket=bucket, Key=key, Body=page.encode("utf-8"),
+                  ContentType="text/html", CacheControl="public, max-age=3600")
+
+    return {"ok": True, "url": f"https://{p['domain']}/blog/{art.slug}/",
+            "bucket": bucket, "key": key, "size": len(page)}
