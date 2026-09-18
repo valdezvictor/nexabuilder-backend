@@ -198,6 +198,7 @@ from app.routers.api.bing_router import router as bing_router
 application.include_router(bing_router)
 
 from app.routers.api.seo_content_router import router as seo_content_router
+from app.routers.api.sites_router import router as sites_router
 from app.routers.api.guides_router import router as guides_router
 application.include_router(seo_content_router)
 application.include_router(guides_router, prefix="/api/seo-content", tags=["guides"])
@@ -230,3 +231,4 @@ from app.routers.api.crm_router import router as crm_router
 from app.routers.api.contact import _contact_router
 application.include_router(crm_router)
 app.include_router(_contact_router)
+application.include_router(sites_router, prefix="/api")
