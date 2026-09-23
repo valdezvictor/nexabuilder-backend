@@ -336,3 +336,179 @@ async def get_top_keywords(_: bool = Depends(require_admin)):
         }
     finally:
         db.close()
+
+
+# ─── MULTI-SITE GSC SUPPORT ──────────────────────────────────────────────────
+
+@router.post("/import-csv")
+async def import_gsc_csv(payload: dict, _: bool = Depends(require_admin)):
+    """Import GSC query/page data from CSV text.
+    Accepts: {domain, rows: [{query, page, clicks, impressions, ctr, position}]}
+    """
+    import re as _re
+    domain = payload.get("domain", "nexabuilder.com")
+    rows   = payload.get("rows", [])
+    if not rows:
+        raise HTTPException(400, "No rows provided")
+
+    def _infer_v(s):
+        s = (s or "").lower()
+        for k, v in [
+            ("pool","pool"),("piscina","pool"),("swimming","pool"),
+            ("roof","roofing"),("rufero","roofing"),
+            ("remodel","remodeling"),("bath","remodeling"),("kitchen","remodeling"),
+            ("electric","electrical"),("electricista","electrical"),
+            ("plumb","plumbing"),("plomero","plumbing"),
+            ("hvac","hvac"),("tecnico","hvac"),
+            ("landscap","landscaping"),("jardinero","landscaping"),
+            ("stone","materials"),("material","materials"),
+            ("unapiscina","pool"),("piscinasy","pool"),("swimmingpul","pool"),
+            ("losruf","roofing"),("ijardinero","landscaping"),("eelectricista","electrical"),
+        ]:
+            if k in s: return v
+        return "general"
+
+    db = _db()
+    inserted = 0
+    errors   = 0
+    try:
+        for row in rows:
+            query = str(row.get("query",""))[:500]
+            page  = str(row.get("page", f"https://{domain}/"))[:500]
+            try:
+                clicks = int(float(str(row.get("clicks",0) or 0)))
+                impr   = int(float(str(row.get("impressions",0) or 0)))
+                ctr_v  = str(row.get("ctr","0")).replace("%","")
+                ctr    = float(ctr_v)/100 if float(ctr_v) > 1 else float(ctr_v)
+                pos    = float(str(row.get("position",0) or 0))
+            except:
+                errors += 1; continue
+
+            vertical = _infer_v(page + " " + query)
+            try:
+                db.execute(sqlt("""
+                    INSERT INTO gsc_keywords
+                      (query,page,clicks,impressions,ctr,position,date_range,vertical,domain,synced_at)
+                    VALUES (:q,:p,:c,:i,:ctr,:pos,'csv_import',:v,:d,NOW())
+                    ON CONFLICT (query,page,date_range) DO UPDATE SET
+                      clicks=GREATEST(gsc_keywords.clicks,EXCLUDED.clicks),
+                      impressions=GREATEST(gsc_keywords.impressions,EXCLUDED.impressions),
+                      ctr=EXCLUDED.ctr,position=EXCLUDED.position,
+                      vertical=EXCLUDED.vertical,domain=EXCLUDED.domain,synced_at=NOW()
+                """), {"q":query,"p":page,"c":clicks,"i":impr,
+                       "ctr":ctr,"pos":pos,"v":vertical,"d":domain})
+                inserted += 1
+            except Exception as e:
+                log.warning(f"CSV import row error: {e}")
+                errors += 1
+        db.commit()
+        # Update last_synced_at in gsc_sites
+        db.execute(sqlt(
+            "UPDATE gsc_sites SET last_synced_at=NOW() WHERE domain=:d"
+        ), {"d": domain})
+        db.commit()
+        return {"ok": True, "domain": domain, "inserted": inserted, "errors": errors}
+    finally:
+        db.close()
+
+
+@router.get("/sites")
+async def list_gsc_sites(_: bool = Depends(require_admin)):
+    """List all registered GSC properties and their sync status."""
+    db = _db()
+    try:
+        sites = db.execute(sqlt(
+            "SELECT domain, gsc_property, last_synced_at, is_active, "
+            "(SELECT COUNT(*) FROM gsc_keywords k WHERE k.domain=s.domain) as row_count "
+            "FROM gsc_sites s ORDER BY domain"
+        )).fetchall()
+        return {"sites": [dict(r._mapping) for r in sites]}
+    finally:
+        db.close()
+
+
+@router.post("/sync-all")
+async def sync_all_gsc(bg: BackgroundTasks, _: bool = Depends(require_admin)):
+    """Trigger GSC sync for all active properties that share the same OAuth token."""
+    token_json = _get_gsc_token()
+    if not token_json:
+        raise HTTPException(503, "GSC not connected. Visit /api/gsc/authorize first.")
+    db = _db()
+    try:
+        sites = db.execute(sqlt(
+            "SELECT domain, gsc_property FROM gsc_sites WHERE is_active=TRUE"
+        )).fetchall()
+    finally:
+        db.close()
+    for site in sites:
+        bg.add_task(_run_gsc_sync_domain, token_json, site[0], site[1])
+    return {"status": "syncing", "properties": [s[0] for s in sites]}
+
+
+async def _run_gsc_sync_domain(token_json: str, domain: str, gsc_property: str):
+    """Pull top 500 queries for a specific GSC property into gsc_keywords."""
+    import httpx, json as _j
+    db = _db()
+    try:
+        tokens = _j.loads(token_json)
+        access_token = tokens.get("access_token","")
+        # Refresh if needed
+        if tokens.get("refresh_token"):
+            cid = os.getenv("GOOGLE_CLIENT_ID","")
+            cs  = os.getenv("GOOGLE_CLIENT_SECRET","")
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.post("https://oauth2.googleapis.com/token", data={
+                    "client_id":cid,"client_secret":cs,
+                    "refresh_token":tokens["refresh_token"],"grant_type":"refresh_token"
+                })
+                if r.is_success:
+                    tokens.update(r.json())
+                    access_token = tokens.get("access_token", access_token)
+
+        end_dt   = datetime.utcnow().strftime("%Y-%m-%d")
+        start_dt = (datetime.utcnow() - timedelta(days=28)).strftime("%Y-%m-%d")
+
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(
+                f"https://searchconsole.googleapis.com/webmasters/v3/sites/{gsc_property}/searchAnalytics/query",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"startDate":start_dt,"endDate":end_dt,
+                      "dimensions":["query","page"],"rowLimit":500}
+            )
+        if not r.is_success:
+            log.error(f"GSC sync failed for {domain}: {r.status_code} {r.text[:100]}")
+            return
+
+        rows = r.json().get("rows",[])
+        log.info(f"GSC sync {domain}: {len(rows)} rows")
+        inserted = 0
+        for row in rows:
+            keys  = row.get("keys",[])
+            query = keys[0] if keys else ""
+            page  = keys[1] if len(keys)>1 else f"https://{domain}/"
+            vertical = _infer_vertical(page + " " + query)
+            try:
+                db.execute(sqlt("""
+                    INSERT INTO gsc_keywords
+                      (query,page,clicks,impressions,ctr,position,date_range,vertical,domain,synced_at)
+                    VALUES (:q,:p,:c,:i,:ctr,:pos,'last_28_days',:v,:d,NOW())
+                    ON CONFLICT (query,page,date_range) DO UPDATE SET
+                      clicks=EXCLUDED.clicks,impressions=EXCLUDED.impressions,
+                      ctr=EXCLUDED.ctr,position=EXCLUDED.position,
+                      vertical=EXCLUDED.vertical,domain=EXCLUDED.domain,synced_at=NOW()
+                """), {"q":query[:500],"p":page[:500],
+                       "c":int(row.get("clicks",0)),"i":int(row.get("impressions",0)),
+                       "ctr":float(row.get("ctr",0)),"pos":float(row.get("position",0)),
+                       "v":vertical,"d":domain})
+                inserted += 1
+            except Exception as e:
+                log.warning(f"Row error {domain}: {e}")
+        db.commit()
+        db.execute(sqlt("UPDATE gsc_sites SET last_synced_at=NOW() WHERE domain=:d"),{"d":domain})
+        db.commit()
+        log.info(f"GSC sync complete {domain}: {inserted} rows")
+    except Exception as e:
+        log.error(f"GSC sync error {domain}: {e}")
+        db.rollback()
+    finally:
+        db.close()
