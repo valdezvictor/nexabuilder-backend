@@ -512,3 +512,126 @@ async def _run_gsc_sync_domain(token_json: str, domain: str, gsc_property: str):
         db.rollback()
     finally:
         db.close()
+
+
+# ─── INDEX COVERAGE / CRITICAL ISSUES ────────────────────────────────────────
+
+@router.get("/coverage")
+async def get_coverage(domain: str = "nexabuilder.com", _: bool = Depends(require_admin)):
+    """Return GSC index coverage issues for a domain."""
+    db = _db()
+    try:
+        rows = db.execute(sqlt(
+            "SELECT * FROM gsc_index_coverage WHERE domain=:d ORDER BY "
+            "CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, page_count DESC"
+        ), {"d": domain}).fetchall()
+        total_not_indexed = db.execute(sqlt(
+            "SELECT COALESCE(SUM(page_count),0) FROM gsc_index_coverage "
+            "WHERE domain=:d AND reason NOT LIKE '%canonical%' AND reason NOT LIKE '%redirect%' "
+            "AND reason NOT LIKE '%noindex%'"
+        ), {"d": domain}).fetchone()[0]
+        return {
+            "domain": domain,
+            "issues": [dict(r._mapping) for r in rows],
+            "total_issues": len(rows),
+            "total_not_indexed": int(total_not_indexed),
+        }
+    finally:
+        db.close()
+
+
+@router.patch("/coverage/{issue_id}")
+async def update_coverage_issue(issue_id: int, payload: dict, _: bool = Depends(require_admin)):
+    """Update status/notes/priority of a coverage issue."""
+    db = _db()
+    try:
+        allowed = {"status", "notes", "priority", "validation"}
+        updates = {k: v for k, v in payload.items() if k in allowed}
+        if not updates:
+            raise HTTPException(400, "No valid fields to update")
+        set_clause = ", ".join(f"{k}=:{k}" for k in updates)
+        updates["id"] = issue_id
+        db.execute(sqlt(f"UPDATE gsc_index_coverage SET {set_clause}, updated_at=NOW() WHERE id=:id"), updates)
+        db.commit()
+        return {"ok": True, "id": issue_id, "updated": list(updates.keys())}
+    finally:
+        db.close()
+
+
+@router.post("/coverage/ai-fix/{issue_id}")
+async def ai_fix_coverage(issue_id: int, _: bool = Depends(require_admin)):
+    """Run Claude AI analysis on a coverage issue and suggest specific fixes."""
+    import httpx as _hx, os as _os
+    db = _db()
+    try:
+        row = db.execute(sqlt("SELECT * FROM gsc_index_coverage WHERE id=:id"), {"id": issue_id}).fetchone()
+        if not row:
+            raise HTTPException(404, "Issue not found")
+        issue = dict(row._mapping)
+    finally:
+        db.close()
+
+    key = _os.environ.get("ANTHROPIC_API_KEY", "")
+    PRIORITIES = {
+        "Discovered - currently not indexed": "Google found these pages but chose not to index them — usually thin content, duplicate content, or poor signals. These are the highest-value pages to fix.",
+        "Crawled - currently not indexed": "Google crawled these pages recently and decided not to index them. Likely thin content or low E-E-A-T signals.",
+        "Not found (404)": "Pages returning 404. Fix immediately — any links pointing here are wasted.",
+        "Blocked due to access forbidden (403)": "Pages returning 403. Check server config.",
+        "Blocked by robots.txt": "Pages blocked by robots.txt — verify these should be blocked.",
+        "Excluded by noindex tag": "Pages with noindex meta tag. Verify all 115 are intentionally excluded.",
+        "Alternate page with proper canonical tag": "Duplicate pages where canonical correctly points elsewhere. Usually not a problem unless the canonical is wrong.",
+        "Duplicate without user-selected canonical": "Duplicate pages with no canonical tag. Add canonical tags immediately.",
+    }
+    context = PRIORITIES.get(issue["reason"], "")
+    prompt = f"""You are an SEO technical specialist for NexaBuilder (nexabuilder.com), a CSLB-verified contractor-matching platform for Southern California homeowners.
+
+COVERAGE ISSUE:
+Domain: {issue["domain"]}
+Issue Type: {issue["reason"]}
+Source: {issue["source"]}
+Affected Pages: {issue["page_count"]}
+Current Status: {issue["status"]}
+Context: {context}
+
+SITE CONTEXT:
+- Static HTML pages served from S3/CloudFront
+- Service pages at /services/[vertical]/
+- Materials pages at /materials/[category]/[item]/
+- Blog at /blog/[slug]/
+- Locations at /locations/[city]/
+- Admin CMS manages content directly
+
+Provide a specific action plan with:
+
+## Root Cause
+What is most likely causing this issue for this specific site.
+
+## Exact Fix Steps
+Numbered list of exact steps to resolve — be specific to NexaBuilder's stack (S3, CloudFront, static HTML).
+
+## CMS Action
+What to update in the NexaBuilder admin CMS right now.
+
+## Expected Timeline
+When Google should re-index after the fix.
+
+## Prevention
+How to prevent this from recurring."""
+
+    async with _hx.AsyncClient(timeout=30) as c:
+        r = await c.post("https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-sonnet-4-6", "max_tokens": 800,
+                  "messages": [{"role": "user", "content": prompt}]})
+    text = next((b["text"] for b in r.json().get("content", []) if b.get("type") == "text"), "")
+
+    # Save analysis to notes
+    db = _db()
+    try:
+        db.execute(sqlt("UPDATE gsc_index_coverage SET notes=:n, updated_at=NOW() WHERE id=:id"),
+                   {"n": text[:2000], "id": issue_id})
+        db.commit()
+    finally:
+        db.close()
+    return {"insight": text, "issue_id": issue_id}
