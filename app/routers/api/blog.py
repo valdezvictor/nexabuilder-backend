@@ -435,7 +435,7 @@ async def deploy_blog_static(request: Request):
 @router.post("/admin/article/{article_id}/suggest-meta")
 async def suggest_meta(article_id: int, payload: dict, x_admin_key: str = Header(...)):
     import httpx as _h, re as _re, os as _os, json as _j
-    _require_admin(x_admin_key)
+    require_admin(x_admin_key)
     h1    = payload.get("h1","") or ""
     kw    = (payload.get("primary_keyword","") or payload.get("slug","")).replace("-"," ")
     notes = (payload.get("cdm_notes","") or "")[:400]
@@ -551,7 +551,7 @@ async def generate_article(
 ):
     """Generate a new article for a micro site using Claude."""
     import httpx as _h, re as _re, json as _j, os as _os, re as _re2
-    _require_admin(x_admin_key)
+    require_admin(x_admin_key)
 
     if site_id not in _SITE_PROFILES:
         raise HTTPException(400, f"Unknown site_id: {site_id}")
@@ -624,7 +624,7 @@ async def review_article(
 ):
     """CDM-style AI review — scores the article 0-100."""
     import httpx as _h, re as _re, json as _j, os as _os
-    _require_admin(x_admin_key)
+    require_admin(x_admin_key)
 
     result = await db.execute(select(BlogArticle).where(BlogArticle.id == article_id))
     art = result.scalars().first()
@@ -683,7 +683,7 @@ async def deploy_article(
 ):
     """Push a published blog article to the site's S3 bucket."""
     import boto3 as _b3, re as _re, os as _os
-    _require_admin(x_admin_key)
+    require_admin(x_admin_key)
 
     result = await db.execute(select(BlogArticle).where(BlogArticle.id == article_id))
     art = result.scalars().first()

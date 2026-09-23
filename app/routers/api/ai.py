@@ -9,6 +9,8 @@ from app.db import get_db
 from app.services.ai_lead_scoring import predict_lead_quality
 
 router = APIRouter(prefix="/api/ai", tags=["AI"])
+ADMIN_KEY = os.getenv("CMS_ADMIN_KEY", "")
+ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # AI Lead Score
 @router.post("/lead-score")
