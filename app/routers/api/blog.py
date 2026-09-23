@@ -575,14 +575,62 @@ async def generate_article(
     text = r.json()["content"][0]["text"].strip()
     text = _re.sub(r"^```[a-z]*\n?|```$", "", text, flags=_re.MULTILINE).strip()
 
+    # Try separator format first (META_START...META_END / BODY_START...BODY_END)
+    data = None
+    if "META_START" in text and "BODY_START" in text:
+        meta_m = _re2.search(r"META_START\s*(.*?)\s*META_END", text, _re2.S)
+        body_m = _re2.search(r"BODY_START\s*(.*?)\s*BODY_END", text, _re2.S)
+        if meta_m and body_m:
+            meta_text = meta_m.group(1).strip()
+            body_html = body_m.group(1).strip()
+            def _parse_kv(t):
+                result = {}
+                for line in t.split("\n"):
+                    if ":" in line:
+                        k, _, v = line.partition(":")
+                        result[k.strip().lower().replace(" ","_")] = v.strip()
+                return result
+            kv = _parse_kv(meta_text)
+            data = {
+                "h1":               kv.get("h1", ""),
+                "slug":             kv.get("slug", ""),
+                "seo_title":        kv.get("seo_title", ""),
+                "meta_description": kv.get("meta_description", ""),
+                "primary_keyword":  kv.get("primary_keyword", keyword),
+                "body_html":        body_html,
+            }
+
+    # Robust parse: body_html contains HTML with quotes that breaks JSON
+    # Strategy: extract body_html separately, parse rest of JSON without it
+    data = None
     try:
         data = _j.loads(text)
     except Exception:
-        # Try to extract JSON from text
-        jm = _re2.search(r"\{.*\}", text, _re2.S)
-        if not jm:
-            raise HTTPException(500, "Claude did not return valid JSON")
-        data = _j.loads(jm.group(0))
+        try:
+            # Remove body_html from text before parsing, extract it separately
+            body_match = _re2.search(r'"body_html"\s*:\s*"(.*)"\s*}\s*$', text, _re2.S)
+            body_html_raw = body_match.group(1) if body_match else ""
+            # Build a safe JSON string without body_html
+            safe = _re2.sub(r',?\s*"body_html"\s*:\s*".*"\s*}\s*$', '}', text, flags=_re2.S)
+            data = _j.loads(safe)
+            # Restore body_html (unescape basic sequences)
+            data["body_html"] = body_html_raw.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+        except Exception as e2:
+            # Last resort: extract each field with regex
+            def _rx(key, t):
+                m = _re2.search(r'"' + key + r'"\s*:\s*"([^"]*)"', t)
+                return m.group(1) if m else ""
+            body_m = _re2.search(r'"body_html"\s*:\s*"(.*?)"(?:\s*,\s*"[a-z_]+"\s*:|\s*})', text, _re2.S)
+            data = {
+                "h1":               _rx("h1", text),
+                "slug":             _rx("slug", text),
+                "seo_title":        _rx("seo_title", text),
+                "meta_description": _rx("meta_description", text),
+                "primary_keyword":  _rx("primary_keyword", text),
+                "body_html":        body_m.group(1) if body_m else "",
+            }
+            if not data["h1"] and not data["slug"]:
+                raise HTTPException(500, f"Could not parse Claude response: {str(e2)[:100]}")
 
     slug = data.get("slug") or keyword.lower().replace(" ", "-")[:100]
 
