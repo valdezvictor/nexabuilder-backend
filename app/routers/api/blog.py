@@ -239,10 +239,6 @@ async def publish_article(
     missing = []
     if not article.body_html:
         missing.append("body_html")
-    if not article.featured_image_url:
-        missing.append("featured_image_url")
-    if not article.featured_image_alt:
-        missing.append("featured_image_alt")
     if missing:
         raise HTTPException(
             status_code=422,
@@ -757,9 +753,12 @@ async def deploy_article(
     # Try to get existing nav/footer from the site itself first
     try:
         idx = s3.get_object(Bucket=bucket, Key="index.html")["Body"].read().decode()
-        nav_m = _re.search(r"<nav[^>]*>.*?</nav>", idx, _re.S|_re.I)
+        # Match any nav — micro sites use different class names (ms-nav, site-nav, etc.)
+        nav_m = _re.search(r"<nav[\s>][^<]*(?:<[^<]*</[^>]*>|[^<])*</nav>", idx, _re.S|_re.I)
+        if not nav_m:
+            nav_m = _re.search(r"<nav[^>]*>.*?</nav>", idx, _re.S|_re.I)
         nav   = nav_m.group(0) if nav_m else _load("shared/nav.html")
-        foot_m = _re.search(r"<footer.*?</footer>", idx, _re.S|_re.I)
+        foot_m = _re.search(r"<footer[^>]*>.*?</footer>", idx, _re.S|_re.I)
         foot  = foot_m.group(0) if foot_m else _load("shared/footer.html")
     except Exception:
         nav  = _load("shared/nav.html")
