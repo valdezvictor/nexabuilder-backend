@@ -334,3 +334,80 @@ Keep every recommendation specific to this query and this site. No generic advic
     data = r.json()
     text = next((b["text"] for b in data.get("content",[]) if b.get("type")=="text"), "")
     return {"insight": text, "model": data.get("model",""), "usage": data.get("usage",{})}
+
+class ImproveArticleRequest(BaseModel):
+    article_id: int
+    body_html: str
+    review_notes: str = ""
+    scores: dict = {}
+    site_id: str = "nexabuilder"
+    language: str = "en"
+
+
+@router.post("/improve-article")
+async def improve_article(payload: ImproveArticleRequest, x_admin_key: str = Header(...)):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(403, "Forbidden")
+    if not ANTHROPIC_KEY:
+        raise HTTPException(503, "ANTHROPIC_API_KEY not configured")
+    import httpx as _hx, re as _re
+
+    lang  = payload.language
+    notes = payload.review_notes or "Improve SEO, add FAQ, strengthen CTA"
+    weak  = [k for k, v in payload.scores.items() if isinstance(v, (int, float)) and v < 8]
+    body  = payload.body_html[:8000]
+
+    if lang == "es":
+        instructions = (
+            "1. Corrige TODOS los errores tipograficos mencionados.\n"
+            "2. Si el bloque AEO es debil, movelo ANTES del primer parrafo y empieza con el dato mas importante.\n"
+            "3. Si falta FAQ, agrega 3-4 preguntas con <div class=\"faq-item\"><div class=\"faq-q\">...</div><div class=\"faq-a\">...</div></div>.\n"
+            "4. Si el CTA es debil, agrega al final: <div class=\"cta-box\"><h3>Obtén tu cotización gratis</h3><p>Contratistas verificados por CSLB.</p><a href=\"/get-quote/\">Solicitar cotización →</a></div>.\n"
+            "5. Agrega ciudades si faltan: Los Angeles, Pasadena, Anaheim, Irvine, Long Beach.\n"
+            "6. Aumenta densidad de keyword principal 2-3 veces mas de forma natural.\n"
+            "7. NO cambies el H1 ni el slug."
+        )
+        prompt = (
+            "Eres un editor SEO experto para sitios de servicios en el Sur de California.\n\n"
+            f"NOTAS DEL REVISOR:\n{notes}\n\n"
+            f"AREAS DEBILES (< 8/10): {', '.join(weak) if weak else 'ninguna'}\n\n"
+            f"INSTRUCCIONES:\n{instructions}\n\n"
+            "Devuelve SOLO el HTML mejorado del body (sin html/head/body tags):\n\n"
+            f"ARTICULO:\n{body}"
+        )
+    else:
+        instructions = (
+            "1. Fix ALL typos mentioned in the notes.\n"
+            "2. If AEO answer block is weak, move it BEFORE the first paragraph, lead with the key stat.\n"
+            "3. If FAQ is missing, add 3-4 questions with <div class=\"faq-item\"><div class=\"faq-q\">...</div><div class=\"faq-a\">...</div></div>.\n"
+            "4. If CTA is weak, add at end: <div class=\"cta-box\"><h3>Get Your Free Quote</h3><p>CSLB-verified contractors.</p><a href=\"/get-quote/\">Request Quote →</a></div>.\n"
+            "5. Add cities if missing: Los Angeles, Pasadena, Anaheim, Irvine, Long Beach.\n"
+            "6. Naturally increase primary keyword density by 2-3 occurrences.\n"
+            "7. Do NOT change the H1 or slug."
+        )
+        prompt = (
+            "You are an expert SEO editor for Southern California home-services sites.\n\n"
+            f"REVIEWER NOTES:\n{notes}\n\n"
+            f"WEAK AREAS (< 8/10): {', '.join(weak) if weak else 'none'}\n\n"
+            f"INSTRUCTIONS:\n{instructions}\n\n"
+            "Return ONLY the improved HTML body content (no html/head/body tags):\n\n"
+            f"ARTICLE:\n{body}"
+        )
+
+    async with _hx.AsyncClient(timeout=90) as c:
+        r = await c.post("https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-sonnet-4-6", "max_tokens": 8192,
+                  "messages": [{"role": "user", "content": prompt}]})
+
+    data = r.json()
+    improved = next((b["text"] for b in data.get("content", []) if b.get("type") == "text"), "")
+    improved = _re.sub(r"^```[a-z]*\n?|```$", "", improved, flags=_re.MULTILINE).strip()
+
+    return {
+        "improved_html": improved,
+        "article_id": payload.article_id,
+        "original_length": len(payload.body_html),
+        "improved_length": len(improved),
+    }
