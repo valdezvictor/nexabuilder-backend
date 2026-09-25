@@ -825,5 +825,9 @@ async def deploy_article(
     s3.put_object(Bucket=bucket, Key=key, Body=page.encode("utf-8"),
                   ContentType="text/html", CacheControl="public, max-age=3600")
 
+    # Rebuild with proper site template (overrides the generic page above)
+    import subprocess as _sp
+    _sp.run(["python3", "/home/ec2-user/blog_tmpl.py"], capture_output=True, text=True)
+
     return {"ok": True, "url": f"https://{p['domain']}/blog/{art.slug}/",
             "bucket": bucket, "key": key, "size": len(page)}
