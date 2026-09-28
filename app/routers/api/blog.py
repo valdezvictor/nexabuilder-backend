@@ -469,6 +469,8 @@ _SITE_PROFILES = {
     "ijardinero":    {"name":"iJardinero","domain":"ijardinero.com","vertical":"landscaping","lang":"es","cslb":"C-27","region":"Sur de California"},
     "swimmingpul":   {"name":"SwimmingPul","domain":"swimmingpul.com","vertical":"pool","lang":"en","cslb":"C-53","region":"Southern California"},
     "nexabuilder":   {"name":"NexaBuilder","domain":"nexabuilder.com","vertical":"general","lang":"en","cslb":"CSLB","region":"Southern California"},
+    "renovationremodel": {"name":"Renovation Remodel","domain":"renovationremodel.com","vertical":"remodel","lang":"en","cslb":"General B","region":"Southern California"},
+    "iquotesai":     {"name":"iQuotesAI","domain":"iquotesai.com","vertical":"home-improvement","lang":"en","cslb":"General","region":"Southern California"},
 }
 
 _SITE_BUCKETS = {
@@ -479,6 +481,8 @@ _SITE_BUCKETS = {
     "losruferos":    "losruferos.com",
     "ijardinero":    "ijardinero.com",
     "swimmingpul":   "swimmingpul.com",
+    "renovationremodel": "renovationremodel-frontend",
+    "iquotesai":     "iquotesai-frontend",
 }
 
 
