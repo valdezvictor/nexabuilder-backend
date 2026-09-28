@@ -22,9 +22,9 @@ ADMIN_KEY = "GidhUSbSVmhSzpY8Xd7gfBEJJYB-ycHKz5j-JxEYSpU"
 def _auth(k):
     if k!=ADMIN_KEY: raise HTTPException(403,"Invalid admin key")
 
-SITE_BUCKETS={"nexabuilder":"nexabuilder-root-site-979841141166-us-west-1-an","unapiscina":"unapiscina-frontend","eelectricista":"eelectricista.com","piscinasy":"piscinasy.com","losruferos":"losruferos.com","ijardinero":"ijardinero.com","swimmingpul":"swimmingpul.com"}
-SITE_CF={"unapiscina":"EIUC99BH83ACL","eelectricista":"E2INQNE25T38VT","piscinasy":"E10IYVR79GRZWN","losruferos":"E3OXMEVG6WNOUQ","ijardinero":"E2VBXFVQBMK986","nexabuilder":"EDLQAZ1IS2WIG"}
-DOMAIN_SLUG={"nexabuilder.com":"nexabuilder","unapiscina.com":"unapiscina","eelectricista.com":"eelectricista","piscinasy.com":"piscinasy","losruferos.com":"losruferos","ijardinero.com":"ijardinero","swimmingpul.com":"swimmingpul"}
+SITE_BUCKETS={"nexabuilder":"nexabuilder-root-site-979841141166-us-west-1-an","unapiscina":"unapiscina-frontend","eelectricista":"eelectricista.com","piscinasy":"piscinasy.com","losruferos":"losruferos.com","ijardinero":"ijardinero.com","swimmingpul":"swimmingpul.com","iquotesai":"iquotesai-frontend","renovationremodel":"renovationremodel-frontend"}
+SITE_CF={"unapiscina":"EIUC99BH83ACL","eelectricista":"E2INQNE25T38VT","piscinasy":"E10IYVR79GRZWN","losruferos":"E3OXMEVG6WNOUQ","ijardinero":"E2VBXFVQBMK986","nexabuilder":"EDLQAZ1IS2WIG","swimmingpul":"IAR6W4FVT4WKI16XIKPBBTXIC","iquotesai":"E2194JR1XB95GS","renovationremodel":"E2KGY64V7NAX15"}
+DOMAIN_SLUG={"nexabuilder.com":"nexabuilder","unapiscina.com":"unapiscina","eelectricista.com":"eelectricista","piscinasy.com":"piscinasy","losruferos.com":"losruferos","ijardinero.com":"ijardinero","swimmingpul.com":"swimmingpul","iquotesai.com":"iquotesai","renovationremodel.com":"renovationremodel"}
 
 @router.get("")
 async def list_sites(x_admin_key:str=Header(...)):
