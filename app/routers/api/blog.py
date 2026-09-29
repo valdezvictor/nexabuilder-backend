@@ -829,9 +829,51 @@ async def deploy_article(
     s3.put_object(Bucket=bucket, Key=key, Body=page.encode("utf-8"),
                   ContentType="text/html", CacheControl="public, max-age=3600")
 
-    # Rebuild with proper site template (overrides the generic page above)
-    import subprocess as _sp
-    _sp.run(["python3", "/home/ec2-user/blog_tmpl.py"], capture_output=True, text=True)
+    # Rebuild this site's article page (proper template) + blog index (all published)
+    try:
+        _src  = open("/home/ec2-user/blog_tmpl.py").read()
+        _stop = _src.find("
+for sid,cfg in SITES")
+        if _stop < 0: _stop = _src.find("
+DB=")
+        _ns = {}
+        exec(compile(_src[:_stop], "/home/ec2-user/blog_tmpl.py", "exec"), _ns)
+        cfg_t = _ns["SITES"].get(art.site_id)
+        if cfg_t:
+            # Re-upload article with proper site template
+            _art_d = {
+                "slug": art.slug, "h1": art.h1,
+                "seo_title": art.seo_title,
+                "meta_description": art.meta_description,
+                "body_html": art.body_html or "",
+                "published_at": art.published_at,
+                "word_count": art.word_count,
+                "reading_time_minutes": art.reading_time_minutes,
+            }
+            _art_html = _ns["art_page"](cfg_t, _art_d)
+            s3.put_object(Bucket=bucket, Key=key,
+                          Body=_art_html.encode("utf-8"),
+                          ContentType="text/html", CacheControl="public, max-age=3600")
+            # Rebuild blog index with all published articles for this site
+            from sqlalchemy import select as _sel2
+            _res2 = await db.execute(
+                _sel2(BlogArticle).where(
+                    BlogArticle.site_id == art.site_id,
+                    BlogArticle.status == ArticleStatus.published
+                ).order_by(BlogArticle.id)
+            )
+            _all  = _res2.scalars().all()
+            _dcts = [{"slug": a.slug, "h1": a.h1,
+                      "meta_description": a.meta_description,
+                      "word_count": a.word_count,
+                      "published_at": a.published_at}
+                     for a in _all]
+            _idx  = _ns["blog_idx"](cfg_t, _dcts, cfg_t["domain"])
+            s3.put_object(Bucket=bucket, Key="blog/index.html",
+                          Body=_idx.encode("utf-8"),
+                          ContentType="text/html", CacheControl="public, max-age=3600")
+    except Exception as _e:
+        pass  # non-fatal
 
     return {"ok": True, "url": f"https://{p['domain']}/blog/{art.slug}/",
             "bucket": bucket, "key": key, "size": len(page)}
