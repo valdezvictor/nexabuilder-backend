@@ -832,10 +832,8 @@ async def deploy_article(
     # Rebuild this site's article page (proper template) + blog index (all published)
     try:
         _src  = open("/home/ec2-user/blog_tmpl.py").read()
-        _stop = _src.find("
-for sid,cfg in SITES")
-        if _stop < 0: _stop = _src.find("
-DB=")
+        _stop = _src.find(chr(10)+"for sid,cfg in SITES")
+        if _stop < 0: _stop = _src.find(chr(10)+"DB=")
         _ns = {}
         exec(compile(_src[:_stop], "/home/ec2-user/blog_tmpl.py", "exec"), _ns)
         cfg_t = _ns["SITES"].get(art.site_id)
