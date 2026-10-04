@@ -703,33 +703,3 @@ async def update_lead_profile_member(
         await db.commit()
 
     return {"success": True, "lead_id": lead_id}
-
-@router.get("/admin/alerts-summary")
-async def admin_alerts_summary(request: Request):
-    from app.db import get_sessionmaker
-    # removed
-    from sqlalchemy import text as _sqlt2
-    key = request.headers.get("x-admin-key","")
-    CRM_KEY = __import__("os").getenv("CMS_ADMIN_KEY","")
-    if not CRM_KEY or key != CRM_KEY:
-        from fastapi import HTTPException as _HE
-        raise _HE(status_code=403, detail="Forbidden")
-    SM = get_sessionmaker()
-    with SM() as s:
-        row = s.execute(_sqlt2(
-            "SELECT "
-            "COUNT(*) FILTER (WHERE lead_status IN ('submitted','New') "
-            "AND (vertical IS NULL OR vertical='' OR vertical='other' "
-            "OR project_type IS NULL OR project_type='' "
-            "OR budget IS NULL OR budget='')) AS incomplete, "
-            "COUNT(*) FILTER (WHERE lead_status IN ('submitted','New') "
-            "AND created_at > NOW() - INTERVAL '24 hours') AS new_today, "
-            "COUNT(*) FILTER (WHERE lead_status IN ('submitted','New')) AS total_open "
-            "FROM leads"
-        )).fetchone()
-    return {
-        "incomplete":      int(row[0] or 0),
-        "new_today":       int(row[1] or 0),
-        "total_open":      int(row[2] or 0),
-        "needs_attention": int(row[0] or 0) > 0 or int(row[1] or 0) > 0,
-    }
