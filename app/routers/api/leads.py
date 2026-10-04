@@ -703,3 +703,12 @@ async def update_lead_profile_member(
         await db.commit()
 
     return {"success": True, "lead_id": lead_id}
+
+@router.get('/admin/alerts')
+async def admin_alerts(x_admin_key: str = Header(...), db: AsyncSession = Depends(get_db)):
+    require_admin(x_admin_key)
+    from sqlalchemy import text as _t
+    async with db as session:
+        r = await session.execute(_t('SELECT COUNT(*) FILTER (WHERE lead_status IN ('+chr(39)+'submitted'+chr(39)+','+chr(39)+'New'+chr(39)+') AND (vertical IS NULL OR vertical='+chr(39)+chr(39)+' OR vertical='+chr(39)+'other'+chr(39)+' OR project_type IS NULL OR project_type='+chr(39)+chr(39)+' OR budget IS NULL OR budget='+chr(39)+chr(39)+')) AS incomplete, COUNT(*) FILTER (WHERE lead_status IN ('+chr(39)+'submitted'+chr(39)+','+chr(39)+'New'+chr(39)+') AND created_at > NOW() - INTERVAL '+chr(39)+'24 hours'+chr(39)+') AS new_today, COUNT(*) FILTER (WHERE lead_status IN ('+chr(39)+'submitted'+chr(39)+','+chr(39)+'New'+chr(39)+')) AS total_open FROM leads'))
+        row = r.fetchone()
+        return {'incomplete':row[0],'new_today':row[1],'total_open':row[2],'needs_attention':row[0]>0 or row[1]>0}
