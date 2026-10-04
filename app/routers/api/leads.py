@@ -704,11 +704,32 @@ async def update_lead_profile_member(
 
     return {"success": True, "lead_id": lead_id}
 
-@router.get('/admin/alerts')
-async def admin_alerts(x_admin_key: str = Header(...), db: AsyncSession = Depends(get_db)):
-    require_admin(x_admin_key)
-    from sqlalchemy import text as _t
-    async with db as session:
-        r = await session.execute(_t('SELECT COUNT(*) FILTER (WHERE lead_status IN ('+chr(39)+'submitted'+chr(39)+','+chr(39)+'New'+chr(39)+') AND (vertical IS NULL OR vertical='+chr(39)+chr(39)+' OR vertical='+chr(39)+'other'+chr(39)+' OR project_type IS NULL OR project_type='+chr(39)+chr(39)+' OR budget IS NULL OR budget='+chr(39)+chr(39)+')) AS incomplete, COUNT(*) FILTER (WHERE lead_status IN ('+chr(39)+'submitted'+chr(39)+','+chr(39)+'New'+chr(39)+') AND created_at > NOW() - INTERVAL '+chr(39)+'24 hours'+chr(39)+') AS new_today, COUNT(*) FILTER (WHERE lead_status IN ('+chr(39)+'submitted'+chr(39)+','+chr(39)+'New'+chr(39)+')) AS total_open FROM leads'))
-        row = r.fetchone()
-        return {'incomplete':row[0],'new_today':row[1],'total_open':row[2],'needs_attention':row[0]>0 or row[1]>0}
+@router.get("/admin/alerts-summary")
+async def admin_alerts_summary(request: Request):
+    from app.db import get_sessionmaker
+    # removed
+    from sqlalchemy import text as _sqlt2
+    key = request.headers.get("x-admin-key","")
+    CRM_KEY = __import__("os").getenv("CMS_ADMIN_KEY","")
+    if not CRM_KEY or key != CRM_KEY:
+        from fastapi import HTTPException as _HE
+        raise _HE(status_code=403, detail="Forbidden")
+    SM = get_sessionmaker()
+    with SM() as s:
+        row = s.execute(_sqlt2(
+            "SELECT "
+            "COUNT(*) FILTER (WHERE lead_status IN ('submitted','New') "
+            "AND (vertical IS NULL OR vertical='' OR vertical='other' "
+            "OR project_type IS NULL OR project_type='' "
+            "OR budget IS NULL OR budget='')) AS incomplete, "
+            "COUNT(*) FILTER (WHERE lead_status IN ('submitted','New') "
+            "AND created_at > NOW() - INTERVAL '24 hours') AS new_today, "
+            "COUNT(*) FILTER (WHERE lead_status IN ('submitted','New')) AS total_open "
+            "FROM leads"
+        )).fetchone()
+    return {
+        "incomplete":      int(row[0] or 0),
+        "new_today":       int(row[1] or 0),
+        "total_open":      int(row[2] or 0),
+        "needs_attention": int(row[0] or 0) > 0 or int(row[1] or 0) > 0,
+    }
