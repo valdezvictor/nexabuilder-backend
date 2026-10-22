@@ -517,6 +517,39 @@ REQUISITOS SEO:
 DEVUELVE SOLO JSON (sin markdown, sin backticks):
 {{"h1":"...","slug":"keyword-en-minusculas-con-guiones","seo_title":"...max 65 chars...","meta_description":"...150-160 chars...","primary_keyword":"{keyword}","body_html":"...HTML completo..."}}"""
     else:
+        # AI/adtech vertical: CMO/agency professional audience
+        if p.get("vertical") == "ai-adtech":
+            _kw = keyword
+            _th = f"Article focus: {title_hint}" if title_hint else ""
+            _ai_prompt = (
+                f"You are an expert writer for {p['name']} ({p['domain']}),\n"
+                "a thought leadership publication covering AI, advertising technology, media strategy, and SEO.\n\n"
+                "Write a complete, authoritative article for: marketing directors, CMOs,\n"
+                "media agency leads, brand strategists, and senior SEO professionals.\n"
+                f"Primary keyword: \"{_kw}\"\n"
+                f"{_th}\n\n"
+                "REQUIRED STRUCTURE (clean HTML, no markdown):\n"
+                "1. <h1> with primary keyword (max 70 chars)\n"
+                "2. Intro with AEO block: <div class=\"aeo-answer\"><strong>Quick Answer:</strong> [40-50 word direct answer]</div>\n"
+                "3. 4-5 <h2> sections with analysis (200+ words each)\n"
+                "4. A relevant data or comparison <table>\n"
+                "5. Strategic takeaways for marketing professionals\n"
+                "6. FAQ (3 Q&As) using <div class=\"faq-item\">\n"
+                "7. Final CTA: <a href=\"/blog/\">Explore more AI and adtech insights</a>\n\n"
+                "CONTENT REQUIREMENTS:\n"
+                "- 1,400-1,800 words total\n"
+                "- Cite real 2025-2026 trends, platforms, and industry data\n"
+                "- Strategic analytical tone, not a beginner guide\n"
+                "- No mentions of CSLB, contractors, or home improvement\n"
+                "- Audience runs ad budgets, SEO programs, media agencies\n"
+                "- Include a LinkedIn-shareable stat or insight in the intro\n\n"
+                "RETURN ONLY JSON (no markdown, no backticks):\n"
+                "{{\"h1\":\"...\",\"slug\":\"keyword-hyphenated\","
+                "\"seo_title\":\"...max 65 chars...\",\"meta_description\":\"...150-160 chars...\","
+                f"\"primary_keyword\":\"{_kw}\",\"body_html\":\"...full HTML...\"}}"
+            )
+            return _ai_prompt
+
         return f"""You are an expert SEO/AEO writer for {p["name"]} ({p["domain"]}), 
 a {p["vertical"]} site in {p["region"]} for homeowners.
 
