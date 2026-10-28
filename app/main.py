@@ -232,3 +232,7 @@ from app.routers.api.contact import _contact_router
 application.include_router(crm_router)
 app.include_router(_contact_router)
 application.include_router(sites_router, prefix="/api")
+
+# ── Admin Cities / SEO Audit / AI Visibility ─────────────────────────────────
+from app.routers.admin_cities import router as admin_cities_router
+application.include_router(admin_cities_router, prefix="/api")
