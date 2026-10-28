@@ -27,8 +27,17 @@ async def lead_index(db: AsyncSession = Depends(get_db)):
             "vertical": lead.vertical,
             "source": lead.source,
             "postal_code": lead.postal_code,
-            "lead_score": lead.ai_score, # Mapping DB ai_score to Frontend lead_score
-            #"routing_tier": lead.routing_tier,
+            "ai_score": getattr(lead, 'ai_score', None),
+            "lead_score": getattr(lead, 'ai_score', None),
+            "pre_qual_score":  getattr(lead, 'pre_qual_score', None),
+            "pre_qual_status": getattr(lead, 'pre_qual_status', None),
+            "pre_qual_tier":   ("A" if (getattr(lead,'pre_qual_score',None) or 0)>=80
+                               else "B" if (getattr(lead,'pre_qual_score',None) or 0)>=65
+                               else "C" if (getattr(lead,'pre_qual_score',None) or 0)>=50
+                               else "D" if (getattr(lead,'pre_qual_score',None) or 0)>=35
+                               else None) if getattr(lead,'pre_qual_score',None) else None,
+            "needs_financing": getattr(lead, 'needs_financing', None),
+            "financing_type":  getattr(lead, 'financing_type', None),
         }
         for lead in leads
     ]
@@ -64,15 +73,30 @@ async def datatables_leads(request: Request, db: AsyncSession = Depends(get_db))
 
     data = []
     for lead in leads:
+        pqs = getattr(lead, 'pre_qual_score', None)
         data.append({
             "id": lead.id,
             "created_at": lead.created_at.strftime("%Y-%m-%d %H:%M") if lead.created_at else "-",
             "name": f"{lead.first_name} {lead.last_name}",
+            "first_name": lead.first_name,
+            "last_name": lead.last_name,
             "vertical": lead.vertical,
             "postal_code": lead.postal_code,
-            "lead_score": lead.lead_score or "-",
+            "ai_score": getattr(lead, 'ai_score', None),
+            "lead_score": getattr(lead, 'ai_score', None),
             "routing_tier": lead.routing_tier or "-",
             "status": lead.status,
+            "lead_status": getattr(lead, 'lead_status', None),
+            "source": getattr(lead, 'source', None),
+            # Financing / pre-qual
+            "pre_qual_score":  pqs,
+            "pre_qual_status": getattr(lead, 'pre_qual_status', None),
+            "pre_qual_tier":   ("A" if (pqs or 0)>=80 else "B" if (pqs or 0)>=65
+                               else "C" if (pqs or 0)>=50 else "D" if (pqs or 0)>=35
+                               else None) if pqs else None,
+            "needs_financing": getattr(lead, 'needs_financing', None),
+            "financing_amount": float(lead.financing_amount) if getattr(lead,'financing_amount',None) else None,
+            "financing_type":  getattr(lead, 'financing_type', None),
         })
 
     return {

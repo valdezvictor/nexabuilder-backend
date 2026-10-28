@@ -11,6 +11,7 @@ class UserRole(enum.Enum):
     contractor = "contractor"
     agent = "agent"
     lead = "lead"
+    seo  = "seo"
 
 class UserStatus(enum.Enum):
     active = "active"

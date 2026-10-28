@@ -43,5 +43,9 @@ websockets==16.0
 python-multipart
 pgeocode
 email-validator
-passlib[bcrypt]
+passlib[bcrypt==4.0.1
 python-jose[cryptography]
+boto3
+anthropic
+
+twilio>=8.0.0
