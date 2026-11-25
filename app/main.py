@@ -200,6 +200,7 @@ application.include_router(bing_router)
 from app.routers.api.seo_content_router import router as seo_content_router
 from app.routers.api.sites_router import router as sites_router
 from app.routers.api.guides_router import router as guides_router
+application.include_router(seo_content_router, prefix="/api")
 application.include_router(seo_content_router)
 application.include_router(guides_router, prefix="/api/seo-content", tags=["guides"])
 
@@ -235,4 +236,83 @@ application.include_router(sites_router, prefix="/api")
 
 # ── Admin Cities / SEO Audit / AI Visibility ─────────────────────────────────
 from app.routers.admin_cities import router as admin_cities_router
+from app.routers.admin_locations import router as admin_locations_router
 application.include_router(admin_cities_router, prefix="/api")
+application.include_router(admin_locations_router, prefix="/api")
+
+# CloudFront no-prefix routes — CloudFront sends /admin/* and /seo-content/* directly
+# to FastAPI (port 8000) without /api prefix; register same routers without prefix so
+# FastAPI accepts both /api/admin/counties and /admin/counties.
+application.include_router(admin_cities_router)
+application.include_router(admin_locations_router)
+
+# ── Admin AI Citations / Citation Probe Runner ───────────────────────────────
+from app.routers.admin_ai_citations import router as ai_citations_router
+application.include_router(ai_citations_router, prefix="/api")
+
+# ── Admin Brand Perception ────────────────────────────────────────────────────
+from app.routers.admin_brand_perception import router as brand_perception_router
+# ── SEO Meta Manager ──────────────────────────────────────────────────────────
+from app.routers.api.seo_meta_manager import router as seo_meta_manager_router
+from app.routers.pages.locations import router as locations_router
+application.include_router(brand_perception_router, prefix="/api")
+application.include_router(seo_meta_manager_router)
+
+# Public Location Pages (county + city SSR)
+application.include_router(locations_router)
+
+# Leads trailing-slash fix: redirect_slashes=False means /api/leads/ 404s.
+# Add explicit route that mirrors /api/leads (no slash).
+from fastapi import APIRouter as _APIRouter, Query as _Query, Depends as _Depends
+from app.db import get_db as _get_db
+from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
+from sqlalchemy import text as _text
+
+_leads_slash_router = _APIRouter(tags=["leads-slash-fix"])
+
+@_leads_slash_router.get("/api/leads/")  # leads_slash_fix
+async def leads_list_slash(
+    limit: int = _Query(default=50, le=200),
+    ordering: str = _Query(default="-created_at"),
+    db: _AsyncSession = _Depends(_get_db),
+):
+    """Trailing-slash alias for /api/leads — admin console calls this path."""
+    order_col = "created_at DESC" if ordering.startswith("-") else "created_at ASC"
+    result = await db.execute(_text(
+        "SELECT id, first_name, last_name, email, phone, vertical, "
+        "postal_code, city, state, ai_score, routing_tier, lead_status, "
+        "source, created_at "
+        "FROM leads ORDER BY " + order_col + " LIMIT :limit"
+    ), {"limit": limit})
+    rows = result.mappings().all()
+    return {
+        "count": len(rows),
+        "results": [
+            {
+                "id": r["id"],
+                "first_name": r["first_name"] or "",
+                "last_name": r["last_name"] or "",
+                "email": r["email"] or "",
+                "phone": r["phone"] or "",
+                "vertical": r["vertical"] or "",
+                "postal_code": r["postal_code"] or "",
+                "city": r["city"] or "",
+                "state": r["state"] or "",
+                "ai_score": r["ai_score"],
+                "routing_tier": r["routing_tier"] or "",
+                "lead_status": r["lead_status"] or "",
+                "source": r["source"] or "",
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            }
+            for r in rows
+        ],
+    }
+
+application.include_router(_leads_slash_router)
+
+
+# IndexNow key file — served at /ba8245eafef243bcbcc851d226c9f515.txt
+@app.get("/ba8245eafef243bcbcc851d226c9f515.txt", include_in_schema=False)
+async def indexnow_key():
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("ba8245eafef243bcbcc851d226c9f515")
