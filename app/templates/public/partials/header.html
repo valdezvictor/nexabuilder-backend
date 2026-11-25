@@ -1,0 +1,125 @@
+<!-- NexaBuilder SSR header partial — matches S3 site-nav design system -->
+<header>
+<style>
+/* ── Site Nav ─────────────────────────────────────── */
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 24px;
+  height: 64px;
+  background: #0a1628;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.site-nav .logo {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-decoration: none;
+  letter-spacing: -.5px;
+  margin-right: 32px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.site-nav .logo span { color: #c8922a; }
+.nav-desktop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+}
+.nav-desktop a {
+  color: rgba(255,255,255,.82);
+  text-decoration: none;
+  font-size: .9rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color .15s, background .15s;
+  white-space: nowrap;
+}
+.nav-desktop a:hover,.nav-desktop a.active {
+  color: #ffffff;
+  background: rgba(255,255,255,.08);
+}
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.nav-phone { color: rgba(255,255,255,.75); text-decoration: none; font-size: .82rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; transition: color .15s; }
+.nav-phone:hover { color: #ffffff; }
+.nav-es { color: rgba(255,255,255,.75); text-decoration: none; font-size: .82rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; transition: color .15s; }
+.nav-es:hover { color: #ffffff; }
+.nav-login { color: rgba(255,255,255,.75); text-decoration: none; font-size: .82rem; white-space: nowrap; padding: 4px 8px; border-radius: 5px; transition: color .15s; }
+.nav-login:hover { color: #ffffff; }
+.nav-cta { background: #c8922a; color: #ffffff; text-decoration: none; font-size: .85rem; font-weight: 700; padding: 8px 18px; border-radius: 6px; white-space: nowrap; transition: background .15s, transform .1s; }
+.nav-cta:hover { background: #b07d22; transform: translateY(-1px); }
+.nav-hamburger { display: none; flex-direction: column; justify-content: center; gap: 5px; width: 38px; height: 38px; border: none; background: transparent; cursor: pointer; padding: 6px; border-radius: 6px; transition: background .15s; }
+.nav-hamburger:hover { background: rgba(255,255,255,.1); }
+.nav-hamburger span { display: block; height: 2px; background: #ffffff; border-radius: 2px; transition: all .25s; }
+.nav-drawer { display: none; position: fixed; inset: 0; z-index: 999; }
+.nav-drawer-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+.nav-drawer-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px,90vw); background: #0a1628; padding: 24px 20px; overflow-y: auto; transform: translateX(100%); transition: transform .28s ease; display: flex; flex-direction: column; gap: 6px; }
+.nav-drawer.open { display: block; }
+.nav-drawer.open .nav-drawer-panel { transform: translateX(0); }
+.nav-drawer-panel a { display: block; color: rgba(255,255,255,.85); text-decoration: none; font-size: 1rem; font-weight: 500; padding: 11px 14px; border-radius: 7px; transition: background .15s, color .15s; }
+.nav-drawer-panel a:hover { background: rgba(255,255,255,.09); color: #fff; }
+.nav-drawer-panel .drawer-cta { margin-top: 12px; background: #c8922a; color: #fff; font-weight: 700; text-align: center; }
+.nav-drawer-panel .drawer-cta:hover { background: #b07d22; }
+.nav-drawer-close { background: none; border: none; color: rgba(255,255,255,.6); font-size: 1.6rem; cursor: pointer; align-self: flex-end; margin-bottom: 8px; line-height: 1; }
+@media (max-width: 860px) {
+  .nav-desktop,.nav-phone,.nav-es,.nav-login,.nav-cta { display: none; }
+  .nav-hamburger { display: flex; }
+  .site-nav .logo { margin-right: auto; }
+}
+</style>
+<nav class="site-nav" aria-label="Main navigation">
+  <a href="/" class="logo">Nexa<span>Builder</span></a>
+  <div class="nav-desktop">
+    <a href="/services/" {% if active_nav == 'services' %}class="active"{% endif %}>Services</a>
+    <a href="/locations/" {% if active_nav == 'locations' %}class="active"{% endif %}>Locations</a>
+    <a href="/materials/" {% if active_nav == 'materials' %}class="active"{% endif %}>Materials</a>
+    <a href="/cost-guide/" {% if active_nav == 'cost-guide' %}class="active"{% endif %}>Cost Guide</a>
+    <a href="/about/" {% if active_nav == 'about' %}class="active"{% endif %}>About</a>
+  </div>
+  <div class="nav-right">
+    <a href="tel:+12138784536" class="nav-phone">📞 (213) 878-4536</a>
+    <a href="/get-quote/?lang=es" class="nav-es">🇲🇽 Español</a>
+    <a href="/portals/" class="nav-login">🔒 Sign In</a>
+    <a href="/get-quote/" class="nav-cta">Free Quote</a>
+    <button class="nav-hamburger" aria-label="Open menu" onclick="nbNavOpen()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="nav-drawer" id="nb-drawer" aria-modal="true" role="dialog" aria-label="Navigation menu">
+  <div class="nav-drawer-backdrop" onclick="nbNavClose()"></div>
+  <div class="nav-drawer-panel">
+    <button class="nav-drawer-close" onclick="nbNavClose()" aria-label="Close menu">&#215;</button>
+    <a href="/services/">Services</a>
+    <a href="/locations/">Locations</a>
+    <a href="/materials/">Materials</a>
+    <a href="/cost-guide/">Cost Guide</a>
+    <a href="/about/">About</a>
+    <a href="tel:+12138784536">📞 (213) 878-4536</a>
+    <a href="/get-quote/?lang=es">🇲🇽 Español</a>
+    <a href="/portals/">🔒 Sign In</a>
+    <a href="/get-quote/" class="drawer-cta">Free Quote</a>
+  </div>
+</div>
+<script>
+(function(){
+  function nbNavOpen(){var d=document.getElementById('nb-drawer');d.classList.add('open');document.body.style.overflow='hidden';}
+  function nbNavClose(){var d=document.getElementById('nb-drawer');d.classList.remove('open');document.body.style.overflow='';}
+  window.nbNavOpen=nbNavOpen;window.nbNavClose=nbNavClose;
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')nbNavClose();});
+})();
+</script>
+</header>

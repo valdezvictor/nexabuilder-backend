@@ -1,0 +1,25 @@
+<style>
+  .nb-lang-float {
+    position: fixed; bottom: 24px; right: 24px; z-index: 900;
+  }
+  .nb-lang-float a {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--nb-navy); color: var(--nb-white);
+    padding: 10px 16px; border-radius: 24px; font-size: .85rem; font-weight: 700;
+    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    transition: background .15s, transform .15s;
+  }
+  .nb-lang-float a:hover { background: #1a2d50; transform: scale(1.04); text-decoration: none; }
+</style>
+
+<div class="nb-lang-float" aria-label="Language switcher">
+  {% if lang == "en" %}
+    <a href="{{ es_href }}" hreflang="es" title="Ver en Español">
+      🌐 <span>ES</span>
+    </a>
+  {% else %}
+    <a href="{{ en_href }}" hreflang="en" title="View in English">
+      🌐 <span>EN</span>
+    </a>
+  {% endif %}
+</div>

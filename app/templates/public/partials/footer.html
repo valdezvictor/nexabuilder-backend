@@ -1,0 +1,65 @@
+<!-- NexaBuilder SSR footer partial — matches S3 site-footer design system -->
+<style>
+.site-footer { background: #0a1628; color: rgba(255,255,255,.75); margin-top: auto; padding-top: 56px; }
+.footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; padding-bottom: 48px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.footer-brand .logo { display: inline-block; font-size: 1.35rem; font-weight: 800; color: #ffffff; text-decoration: none; letter-spacing: -.5px; margin-bottom: 12px; }
+.footer-brand .logo span { color: #c8922a; }
+.footer-brand p { font-size: .85rem; line-height: 1.65; color: rgba(255,255,255,.6); max-width: 280px; }
+.footer-col h4 { color: #ffffff; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 14px; }
+.footer-col a { display: block; color: rgba(255,255,255,.6); text-decoration: none; font-size: .85rem; line-height: 1; margin-bottom: 10px; transition: color .15s; }
+.footer-col a:hover { color: #ffffff; }
+.footer-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 20px 0; font-size: .78rem; color: rgba(255,255,255,.45); }
+.footer-bottom a { color: rgba(255,255,255,.55); text-decoration: none; transition: color .15s; }
+.footer-bottom a:hover { color: #ffffff; }
+@media (max-width: 860px) {
+  .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+  .footer-brand { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .footer-grid { grid-template-columns: 1fr; }
+  .footer-bottom { flex-direction: column; text-align: center; }
+}
+</style>
+<footer class="site-footer" role="contentinfo">
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="/" class="logo">Nexa<span>Builder</span></a>
+        <p>Licensed contractor matching for Southern California. 243,000+ CSLB-verified contractors. Bilingual English &amp; Español. CSLB License #1127866.</p>
+      </div>
+      <nav class="footer-col" aria-label="Services">
+        <h4>Services</h4>
+        <a href="/services/pool-installation/">Pool Installation</a>
+        <a href="/services/home-remodeling/">Home Remodeling</a>
+        <a href="/services/bathroom-remodel/">Bathroom Remodel</a>
+        <a href="/services/roofing/">Roofing</a>
+        <a href="/services/electrical/">Electrical</a>
+        <a href="/services/plumbing/">Plumbing</a>
+        <a href="/services/landscaping/">Landscaping</a>
+      </nav>
+      <nav class="footer-col" aria-label="Company">
+        <h4>Company</h4>
+        <a href="/about/">About</a>
+        <a href="/locations/orange-county/">Orange County</a>
+        <a href="/locations/los-angeles/">Los Angeles</a>
+        <a href="/materials/">Custom Materials</a>
+        <a href="/cost-guide/">Cost Guide</a>
+        <a href="/blog/">Blog</a>
+        <a href="/contact/">Contact Us</a>
+      </nav>
+      <nav class="footer-col" aria-label="Legal">
+        <h4>Legal</h4>
+        <a href="/privacy/">Privacy Policy</a>
+        <a href="/terms/">Terms of Service</a>
+        <a href="/contractors/">For Contractors</a>
+        <a href="/get-quote/">Free Quote</a>
+        <a href="/sitemap/">Sitemap</a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <span>&#169; {{ current_year }} NexaBuilder. All rights reserved. CSLB License #1127866 &middot; (213) 878-4536 &middot; <a href="mailto:info@nexabuilder.com">info@nexabuilder.com</a></span>
+      <span><a href="/privacy/">Privacy</a> &middot; <a href="/terms/">Terms</a> &middot; <a href="/contact/">Contact</a></span>
+    </div>
+  </div>
+</footer>

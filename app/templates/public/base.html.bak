@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="{{ lang | default('en') }}" class="page-{{ page_id }} lang-{{ lang | default('en') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ title | default('NexaBuilder') }}{% endblock %}</title>
+  <meta name="description" content="{{ meta_description | default('') }}">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="alternate" hreflang="en" href="{{ hreflang_en }}">
+  <link rel="alternate" hreflang="es" href="{{ hreflang_es }}">
+  {% block extra_head %}{% endblock %}
+  <style>
+    /* ── NexaBuilder Design Tokens ── */
+    :root {
+      --nb-navy:   #0a1628;
+      --nb-blue:   #1d6fde;
+      --nb-gold:   #c8922a;
+      --nb-white:  #ffffff;
+      --nb-gray:   #f5f7fa;
+      --nb-text:   #1a1a2e;
+      --nb-muted:  #6b7280;
+      --nb-radius: 8px;
+      --nb-font:   'Inter', system-ui, -apple-system, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--nb-font);
+      color: var(--nb-text);
+      background: var(--nb-white);
+      line-height: 1.6;
+    }
+    a { color: var(--nb-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+  </style>
+</head>
+<body>
+  {% include "partials/header.html" %}
+
+  <main id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include "partials/footer.html" %}
+  {% include "partials/lang_toggle.html" %}
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

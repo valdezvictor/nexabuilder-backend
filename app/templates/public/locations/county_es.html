@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Contratistas en {{ county.name }}, California | NexaBuilder{% endblock %}
+{% block content %}
+<style>
+  .nb-county-hero {
+    background: linear-gradient(135deg, var(--nb-navy) 0%, #142240 100%);
+    color: var(--nb-white); padding: 56px 0 40px;
+  }
+  .nb-county-hero h1 { font-size: clamp(1.4rem, 3vw, 2.25rem); font-weight: 800; margin-bottom: 12px; }
+  .nb-county-hero p { color: rgba(255,255,255,.8); max-width: 640px; }
+  .nb-breadcrumb a { color: rgba(255,255,255,.6); }
+  .nb-breadcrumb { font-size: .85rem; color: rgba(255,255,255,.5); margin-bottom: 16px; }
+
+  .nb-stats-strip {
+    display: flex; gap: 32px; flex-wrap: wrap; padding: 20px 0 0;
+  }
+  .nb-stat { text-align: center; }
+  .nb-stat-num { font-size: 1.8rem; font-weight: 800; color: var(--nb-gold); line-height: 1; }
+  .nb-stat-lbl { font-size: .75rem; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .05em; }
+
+  .nb-cities-section { padding: 48px 0; }
+  .nb-cities-section h2 { font-size: 1.3rem; font-weight: 700; color: var(--nb-navy); margin-bottom: 24px; }
+
+  .nb-city-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  }
+  .nb-city-card {
+    border: 1px solid #e5e7eb; border-radius: var(--nb-radius); padding: 16px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: all .15s; text-decoration: none; color: var(--nb-navy);
+  }
+  .nb-city-card:hover {
+    border-color: var(--nb-blue); background: #eff6ff; text-decoration: none; color: var(--nb-blue);
+  }
+  .nb-city-name { font-weight: 600; font-size: .95rem; }
+  .nb-city-count { font-size: .8rem; color: var(--nb-muted); }
+  .nb-city-arrow { font-size: 1rem; color: var(--nb-blue); opacity: 0; transition: opacity .15s; }
+  .nb-city-card:hover .nb-city-arrow { opacity: 1; }
+
+  .nb-cta-band {
+    background: var(--nb-navy); border-radius: var(--nb-radius);
+    padding: 40px; text-align: center; margin: 0 0 64px; color: var(--nb-white);
+  }
+  .nb-cta-band h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+  .nb-cta-band p { color: rgba(255,255,255,.75); margin-bottom: 20px; }
+  .nb-btn-gold {
+    display: inline-block; background: var(--nb-gold); color: var(--nb-navy);
+    font-weight: 700; padding: 12px 28px; border-radius: 6px;
+    transition: background .15s;
+  }
+  .nb-btn-gold:hover { background: #d9a040; text-decoration: none; }
+</style>
+
+<section class="nb-county-hero">
+  <div class="container">
+    <nav class="nb-breadcrumb" aria-label="Miga de pan">
+      <a href="/es/">Inicio</a> &rsaquo;
+      <a href="/es/locations/">Ubicaciones</a> &rsaquo;
+      <span>{{ county.name }}</span>
+    </nav>
+    <h1>{{ h1 | default("Contratistas Licenciados en " ~ county.name) }}</h1>
+    <p>{{ meta_description | default("Encuentre contratistas licenciados y verificados en " ~ county.name ~ ". Obtenga estimados gratis de mano de obra y materiales con NexaBuilder.") }}</p>
+    <div class="nb-stats-strip">
+      {% if contractor_count %}
+      <div class="nb-stat">
+        <div class="nb-stat-num">{{ "{:,}".format(contractor_count) }}</div>
+        <div class="nb-stat-lbl">Contratistas</div>
+      </div>
+      {% endif %}
+      {% if city_count %}
+      <div class="nb-stat">
+        <div class="nb-stat-num">{{ city_count }}</div>
+        <div class="nb-stat-lbl">Ciudades</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  {% if cities %}
+  <section class="nb-cities-section">
+    <h2>Ciudades en {{ county.name }}</h2>
+    <div class="nb-city-grid">
+      {% for city in cities %}
+      <a class="nb-city-card" href="/es/locations/{{ county.slug }}/{{ city.slug }}/">
+        <div>
+          <div class="nb-city-name">{{ city.name }}</div>
+          {% if city.contractor_count %}
+            <div class="nb-city-count">{{ city.contractor_count }} contratistas</div>
+          {% endif %}
+        </div>
+        <span class="nb-city-arrow">&rsaquo;</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="nb-cta-band">
+    <h3>Obtenga Estimados Gratis en {{ county.name }}</h3>
+    <p>Cuéntenos sobre su proyecto y lo conectaremos con los mejores contratistas licenciados en {{ county.name }}.</p>
+    <a href="/es/get-quote/?county={{ county.slug }}" class="nb-btn-gold">Obtener Estimados Gratis</a>
+  </div>
+</div>
+{% endblock %}

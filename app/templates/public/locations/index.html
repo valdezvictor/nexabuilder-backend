@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block schema_json %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Service",
+      "@id": "https://www.nexabuilder.com/locations/#service",
+      "name": "Licensed Contractor Matching — California",
+      "description": "Find and match with CSLB-verified licensed contractors across Southern California counties including Los Angeles, Orange County, San Diego, Riverside, San Bernardino, and Ventura.",
+      "provider": {"@type": "LocalBusiness", "@id": "https://www.nexabuilder.com/#business"},
+      "areaServed": [
+        {"@type": "State", "name": "California", "sameAs": "https://en.wikipedia.org/wiki/California"},
+        {"@type": "City", "name": "Los Angeles"},
+        {"@type": "City", "name": "Anaheim"},
+        {"@type": "City", "name": "San Diego"},
+        {"@type": "City", "name": "Riverside"},
+        {"@type": "City", "name": "San Bernardino"},
+        {"@type": "City", "name": "Ventura"}
+      ],
+      "serviceType": "Contractor Matching",
+      "url": "https://www.nexabuilder.com/locations/"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does NexaBuilder match me with a licensed contractor?",
+          "acceptedAnswer": {"@type": "Answer", "text": "NexaBuilder uses a scoring engine that evaluates CSLB license status, specialty trade, project type, location proximity, and verified reviews to rank the best-matched contractors for your specific project. You receive up to three matched bids within 48 hours."}
+        },
+        {
+          "@type": "Question",
+          "name": "Are all contractors on NexaBuilder CSLB licensed?",
+          "acceptedAnswer": {"@type": "Answer", "text": "Yes. Every contractor in the NexaBuilder network is verified against the California Contractors State License Board (CSLB) database. We check license status, insurance, and bonding before any contractor can receive project referrals."}
+        },
+        {
+          "@type": "Question",
+          "name": "Which California counties does NexaBuilder serve?",
+          "acceptedAnswer": {"@type": "Answer", "text": "NexaBuilder currently serves Los Angeles County, Orange County, San Diego County, Riverside County, San Bernardino County, and Ventura County, with over 243,000 CSLB-verified contractors across these regions."}
+        },
+        {
+          "@type": "Question",
+          "name": "Is there a fee to use NexaBuilder as a homeowner?",
+          "acceptedAnswer": {"@type": "Answer", "text": "No. NexaBuilder is completely free for homeowners and property owners. You submit your project, receive matched contractor bids, and choose with no fees or obligations. Contractors pay a performance-based referral fee only when a project is awarded."}
+        },
+        {
+          "@type": "Question",
+          "name": "¿NexaBuilder tiene contratistas que hablan español?",
+          "acceptedAnswer": {"@type": "Answer", "text": "Sí. NexaBuilder ofrece servicio bilingüe en inglés y español. Muchos de nuestros contratistas verificados son hispanohablantes y podemos hacer coincidir su proyecto con contratistas que se comunican en español."}
+        }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.nexabuilder.com/"},
+        {"@type": "ListItem", "position": 2, "name": "Locations", "item": "https://www.nexabuilder.com/locations/"}
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Locations hero ──────────────────────────────── */
+  .nb-page-hero {
+    background: linear-gradient(135deg, var(--nb-navy) 0%, #142240 100%);
+    color: var(--nb-white);
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .nb-hero-inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: flex-end;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 56px 24px 0;
+    gap: 24px;
+  }
+  .nb-hero-text { padding-bottom: 48px; }
+  .nb-hero-eyebrow {
+    display: inline-block;
+    background: rgba(200,146,42,.18);
+    border: 1px solid rgba(200,146,42,.45);
+    color: #c8922a;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .nb-page-hero h1 {
+    font-size: clamp(1.75rem, 4vw, 2.75rem);
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.15;
+  }
+  .nb-page-hero p {
+    font-size: 1.05rem;
+    color: rgba(255,255,255,.8);
+    max-width: 560px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+  .nb-hero-stats {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .nb-hero-stat strong {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #c8922a;
+    line-height: 1;
+  }
+  .nb-hero-stat span {
+    font-size: .78rem;
+    color: rgba(255,255,255,.6);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .nb-hero-mascot {
+    width: 200px;
+    flex-shrink: 0;
+    align-self: flex-end;
+  }
+  .nb-hero-mascot img {
+    width: 100%;
+    height: auto;
+    display: block;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,.35));
+  }
+  @media (max-width: 680px) {
+    .nb-hero-inner { grid-template-columns: 1fr; }
+    .nb-hero-mascot { display: none; }
+    .nb-hero-text { padding-bottom: 40px; }
+  }
+
+  /* ── County grid ──────────────────────────────────── */
+  .nb-breadcrumb { padding: 12px 0; font-size: .85rem; color: var(--nb-muted); }
+  .nb-breadcrumb a { color: var(--nb-blue); }
+  .nb-county-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    padding: 40px 0 64px;
+  }
+  .nb-county-card {
+    border: 1px solid #e5e7eb;
+    border-radius: var(--nb-radius);
+    padding: 24px;
+    transition: box-shadow .2s, border-color .2s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .nb-county-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.1);
+    border-color: var(--nb-blue);
+    text-decoration: none;
+  }
+  .nb-county-card h2 { font-size: 1.1rem; font-weight: 700; color: var(--nb-navy); }
+  .nb-county-card .nb-county-meta { font-size: .82rem; color: var(--nb-muted); }
+  .nb-county-card .nb-county-cta { margin-top: 8px; font-size: .875rem; font-weight: 600; color: var(--nb-blue); }
+
+  /* ── FAQ section ──────────────────────────────────── */
+  .nb-faq-section {
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+    padding: 56px 0;
+  }
+  .nb-faq-section h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--nb-navy);
+    margin-bottom: 32px;
+  }
+  .nb-faq-list { max-width: 760px; }
+  .nb-faq-list details {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .nb-faq-list summary {
+    padding: 16px 20px;
+    font-weight: 600;
+    font-size: .95rem;
+    color: var(--nb-navy);
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .nb-faq-list summary::-webkit-details-marker { display: none; }
+  .nb-faq-list summary::after {
+    content: '+';
+    font-size: 1.2rem;
+    color: var(--nb-blue);
+    flex-shrink: 0;
+    transition: transform .2s;
+  }
+  .nb-faq-list details[open] summary::after { transform: rotate(45deg); }
+  .nb-faq-list details p {
+    padding: 0 20px 18px;
+    font-size: .92rem;
+    line-height: 1.65;
+    color: #374151;
+    margin: 0;
+  }
+</style>
+
+<!-- Hero -->
+<section class="nb-page-hero" aria-label="Locations hero">
+  <div class="nb-hero-inner">
+    <div class="nb-hero-text">
+      <span class="nb-hero-eyebrow">243,000+ CSLB-Verified Contractors</span>
+      <h1>Find Licensed Contractors<br>Near You in California</h1>
+      <p>Select your county below to browse verified contractors matched to your project type, budget, and timeline. Free to use — no obligation.</p>
+      <div class="nb-hero-stats">
+        <div class="nb-hero-stat">
+          <strong>243K+</strong>
+          <span>Verified Contractors</span>
+        </div>
+        <div class="nb-hero-stat">
+          <strong>6</strong>
+          <span>SoCal Counties</span>
+        </div>
+        <div class="nb-hero-stat">
+          <strong>48h</strong>
+          <span>Avg. Match Time</span>
+        </div>
+      </div>
+    </div>
+    <div class="nb-hero-mascot" aria-hidden="true">
+      <img src="/static/assets/img/NB_ElConstructor.png"
+           alt="NexaBuilder contractor mascot"
+           width="200" height="300"
+           loading="eager">
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <nav class="nb-breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Home</a> &rsaquo; <span>Locations</span>
+  </nav>
+
+  <div class="nb-county-grid">
+    {% for county in counties %}
+    <a class="nb-county-card" href="/locations/{{ county.slug }}/">
+      <h2>{{ county.name }} County</h2>
+      {% if county.city_count %}
+        <span class="nb-county-meta">{{ county.city_count }}+ cities covered</span>
+      {% endif %}
+      <span class="nb-county-cta">Find contractors &rarr;</span>
+    </a>
+    {% else %}
+    {% for slug, name in [
+      ('los-angeles','Los Angeles'),('orange-county','Orange County'),
+      ('san-diego','San Diego'),('riverside','Riverside'),
+      ('san-bernardino','San Bernardino'),('ventura','Ventura')
+    ] %}
+    <a class="nb-county-card" href="/locations/{{ slug }}/">
+      <h2>{{ name }} County</h2>
+      <span class="nb-county-cta">Find contractors &rarr;</span>
+    </a>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- FAQ — feeds AEO / AI engine extraction -->
+<section class="nb-faq-section">
+  <div class="container">
+    <h2>Frequently Asked Questions</h2>
+    <div class="nb-faq-list">
+      <details>
+        <summary>How does NexaBuilder match me with a licensed contractor?</summary>
+        <p>NexaBuilder uses a scoring engine that evaluates CSLB license status, specialty trade, project type, location proximity, and verified reviews to rank the best-matched contractors for your specific project. You receive up to three matched bids within 48 hours.</p>
+      </details>
+      <details>
+        <summary>Are all contractors on NexaBuilder CSLB licensed?</summary>
+        <p>Yes. Every contractor in the NexaBuilder network is verified against the California Contractors State License Board (CSLB) database. We check license status, insurance, and bonding before any contractor can receive project referrals.</p>
+      </details>
+      <details>
+        <summary>Which California counties does NexaBuilder serve?</summary>
+        <p>NexaBuilder currently serves Los Angeles County, Orange County, San Diego County, Riverside County, San Bernardino County, and Ventura County, with over 243,000 CSLB-verified contractors across these regions.</p>
+      </details>
+      <details>
+        <summary>Is there a fee to use NexaBuilder as a homeowner?</summary>
+        <p>No. NexaBuilder is completely free for homeowners and property owners. You submit your project, receive matched contractor bids, and choose with no fees or obligations. Contractors pay a performance-based referral fee only when a project is awarded.</p>
+      </details>
+      <details>
+        <summary>¿NexaBuilder tiene contratistas que hablan español?</summary>
+        <p>Sí. NexaBuilder ofrece servicio bilingüe en inglés y español. Muchos de nuestros contratistas verificados son hispanohablantes y podemos hacer coincidir su proyecto con contratistas que se comunican en español.</p>
+      </details>
+    </div>
+  </div>
+</section>
+{% endblock %}

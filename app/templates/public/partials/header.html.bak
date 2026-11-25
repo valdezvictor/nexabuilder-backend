@@ -1,0 +1,127 @@
+<style>
+  /* ── NexaBuilder Header ── */
+  .nb-header {
+    background: var(--nb-navy);
+    position: sticky; top: 0; z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .nb-header .container {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .nb-logo { display: flex; align-items: center; gap: 8px; }
+  .nb-logo img { height: 36px; }
+  .nb-logo-text { color: var(--nb-white); font-weight: 700; font-size: 1.25rem; letter-spacing: -.5px; }
+  .nb-logo-text span { color: var(--nb-gold); }
+
+  /* Desktop nav */
+  .nb-nav { display: flex; align-items: center; gap: 4px; }
+  .nb-nav a {
+    color: rgba(255,255,255,.82); font-size: .9rem; font-weight: 500;
+    padding: 6px 14px; border-radius: 6px; transition: background .15s, color .15s;
+  }
+  .nb-nav a:hover, .nb-nav a.active {
+    background: rgba(255,255,255,.12); color: var(--nb-white); text-decoration: none;
+  }
+  .nb-nav .nb-cta {
+    background: var(--nb-gold); color: var(--nb-navy) !important;
+    font-weight: 700; margin-left: 8px;
+  }
+  .nb-nav .nb-cta:hover { background: #d9a040; }
+
+  /* Lang toggle in header */
+  .nb-lang-btn {
+    color: rgba(255,255,255,.7); font-size: .8rem; font-weight: 600;
+    padding: 4px 10px; border: 1px solid rgba(255,255,255,.3);
+    border-radius: 4px; margin-left: 8px;
+    transition: all .15s;
+  }
+  .nb-lang-btn:hover { color: var(--nb-white); border-color: var(--nb-white); text-decoration: none; }
+
+  /* Hamburger */
+  .nb-hamburger {
+    display: none; flex-direction: column; gap: 5px; cursor: pointer;
+    background: none; border: none; padding: 4px;
+  }
+  .nb-hamburger span { display: block; width: 24px; height: 2px; background: var(--nb-white); border-radius: 2px; transition: all .2s; }
+
+  /* Mobile drawer */
+  .nb-drawer {
+    display: none; position: fixed; inset: 0; z-index: 999;
+  }
+  .nb-drawer-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.5); }
+  .nb-drawer-panel {
+    position: absolute; top: 0; right: 0; width: 280px; height: 100%;
+    background: var(--nb-navy); padding: 24px 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    transform: translateX(100%); transition: transform .25s ease;
+  }
+  .nb-drawer.open { display: block; }
+  .nb-drawer.open .nb-drawer-panel { transform: translateX(0); }
+  .nb-drawer a {
+    color: rgba(255,255,255,.85); font-size: 1rem; font-weight: 500;
+    padding: 12px 16px; border-radius: 6px; display: block;
+    transition: background .15s;
+  }
+  .nb-drawer a:hover, .nb-drawer a.active { background: rgba(255,255,255,.1); text-decoration: none; }
+  .nb-drawer-close {
+    align-self: flex-end; background: none; border: none;
+    color: var(--nb-white); font-size: 1.5rem; cursor: pointer; margin-bottom: 16px;
+  }
+  .nb-drawer .nb-cta {
+    background: var(--nb-gold); color: var(--nb-navy) !important; text-align: center; font-weight: 700; margin-top: 8px;
+  }
+
+  @media (max-width: 768px) {
+    .nb-nav { display: none; }
+    .nb-hamburger { display: flex; }
+  }
+</style>
+
+<header class="nb-header">
+  <div class="container">
+    <a class="nb-logo" href="/" aria-label="NexaBuilder Home">
+      <img src="/static/img/nexabuilder-logo-white.svg"
+           onerror="this.style.display='none'"
+           alt="NexaBuilder" width="36" height="36">
+      <span class="nb-logo-text">Nexa<span>Builder</span></span>
+    </a>
+
+    <nav class="nb-nav" aria-label="Main navigation">
+      <a href="/"              class="{{ nav_active(page_id, 'home') }}">Home</a>
+      <a href="/locations/"    class="{{ nav_active(page_id, 'locations') }}">Locations</a>
+      <a href="/services/"     class="{{ nav_active(page_id, 'services') }}">Services</a>
+      <a href="/guides/"       class="{{ nav_active(page_id, 'guides') }}">Guides</a>
+      <a href="/blog/"         class="{{ nav_active(page_id, 'blog') }}">Blog</a>
+      <a href="/get-quote/"    class="nb-cta {{ nav_active(page_id, 'get_quote') }}">Get a Quote</a>
+      {% if lang == "en" %}
+        <a href="{{ es_href }}" class="nb-lang-btn" hreflang="es">ES</a>
+      {% else %}
+        <a href="{{ en_href }}" class="nb-lang-btn" hreflang="en">EN</a>
+      {% endif %}
+    </nav>
+
+    <button class="nb-hamburger" aria-label="Open menu" onclick="document.getElementById('nb-drawer').classList.add('open')">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Drawer -->
+<div class="nb-drawer" id="nb-drawer" role="dialog" aria-modal="true" aria-label="Navigation menu">
+  <div class="nb-drawer-overlay" onclick="document.getElementById('nb-drawer').classList.remove('open')"></div>
+  <div class="nb-drawer-panel">
+    <button class="nb-drawer-close" onclick="document.getElementById('nb-drawer').classList.remove('open')" aria-label="Close menu">&times;</button>
+    <a href="/"           class="{{ nav_active(page_id, 'home') }}">Home</a>
+    <a href="/locations/" class="{{ nav_active(page_id, 'locations') }}">Locations</a>
+    <a href="/services/"  class="{{ nav_active(page_id, 'services') }}">Services</a>
+    <a href="/guides/"    class="{{ nav_active(page_id, 'guides') }}">Guides</a>
+    <a href="/blog/"      class="{{ nav_active(page_id, 'blog') }}">Blog</a>
+    {% if lang == "en" %}
+      <a href="{{ es_href }}" hreflang="es" style="color:rgba(255,255,255,.6);font-size:.85rem">🌐 Ver en Español</a>
+    {% else %}
+      <a href="{{ en_href }}" hreflang="en" style="color:rgba(255,255,255,.6);font-size:.85rem">🌐 View in English</a>
+    {% endif %}
+    <a href="/get-quote/" class="nb-cta">Get a Free Quote</a>
+  </div>
+</div>

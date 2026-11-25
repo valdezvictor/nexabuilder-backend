@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block schema_json %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "@id": "https://www.nexabuilder.com/locations/{{ county.slug }}/{{ city_slug }}/#business",
+      "name": "NexaBuilder — Licensed Contractors in {{ city_name }}, CA",
+      "description": "{{ meta_description }}",
+      "url": "https://www.nexabuilder.com/locations/{{ county.slug }}/{{ city_slug }}/",
+      "telephone": "+12138784536",
+      "areaServed": {
+        "@type": "City",
+        "name": "{{ city_name }}, California",
+        "containedInPlace": {
+          "@type": "AdministrativeArea",
+          "name": "{{ county.name }} County, California"
+        }
+      },
+      "parentOrganization": {"@id": "https://www.nexabuilder.com/#business"}
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I find a licensed contractor in {{ city_name }}, California?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "NexaBuilder makes it easy to find CSLB-licensed contractors in {{ city_name }}. Submit your project details and our matching engine will connect you with up to three verified contractors who serve {{ city_name }}, {{ county.name }} County — within 48 hours, at no cost."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are the contractors in {{ city_name }} verified by the CSLB?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. All {{ contractor_count }} contractors listed for {{ city_name }} are cross-referenced with the California Contractors State License Board (CSLB) database and must maintain an Active license, valid insurance, and bonding to appear in NexaBuilder results."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What types of contractors serve {{ city_name }}?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Contractors available in {{ city_name }} include general building contractors, home remodeling specialists, roofing contractors, licensed plumbers, electricians, HVAC technicians, pool and spa installers, and licensed landscapers — all verified through CSLB."
+          }
+        }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.nexabuilder.com/"},
+        {"@type": "ListItem", "position": 2, "name": "Locations", "item": "https://www.nexabuilder.com/locations/"},
+        {"@type": "ListItem", "position": 3, "name": "{{ county.name }} County", "item": "https://www.nexabuilder.com/locations/{{ county.slug }}/"},
+        {"@type": "ListItem", "position": 4, "name": "{{ city_name }}", "item": "https://www.nexabuilder.com/locations/{{ county.slug }}/{{ city_slug }}/"}
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<style>
+  .nb-city-hero {
+    background: linear-gradient(135deg, var(--nb-navy) 0%, #142240 100%);
+    color: var(--nb-white); padding: 0; overflow: hidden;
+  }
+  .nb-city-hero-inner {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: flex-end; max-width: 1200px; margin: 0 auto;
+    padding: 48px 24px 0; gap: 24px;
+  }
+  .nb-city-hero-text { padding-bottom: 40px; }
+  .nb-city-hero h1 { font-size: clamp(1.4rem, 3vw, 2.25rem); font-weight: 800; margin-bottom: 12px; }
+  .nb-city-hero p { color: rgba(255,255,255,.8); max-width: 600px; margin-bottom: 8px; }
+  .nb-breadcrumb a { color: rgba(255,255,255,.6); }
+  .nb-breadcrumb { font-size: .85rem; color: rgba(255,255,255,.5); margin-bottom: 16px; }
+  .nb-city-mascot { width: 160px; flex-shrink: 0; align-self: flex-end; }
+  .nb-city-mascot img {
+    width: 100%; height: auto; display: block;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,.35));
+  }
+  @media (max-width: 680px) {
+    .nb-city-hero-inner { grid-template-columns: 1fr; }
+    .nb-city-mascot { display: none; }
+    .nb-city-hero-text { padding-bottom: 32px; }
+  }
+
+  .nb-body-content { padding: 40px 0; }
+  .nb-body-content h2 { font-size: 1.3rem; font-weight: 700; color: var(--nb-navy); margin-bottom: 20px; }
+
+  .nb-contractor-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
+  .nb-contractor-card {
+    border: 1px solid #e5e7eb; border-radius: var(--nb-radius); padding: 20px 24px;
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px;
+    transition: box-shadow .15s;
+  }
+  .nb-contractor-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+  .nb-contractor-name { font-weight: 700; font-size: 1rem; color: var(--nb-navy); }
+  .nb-contractor-meta { font-size: .82rem; color: var(--nb-muted); margin-top: 4px; }
+  .nb-contractor-badge {
+    display: inline-block; font-size: .75rem; font-weight: 600;
+    padding: 2px 8px; border-radius: 12px; background: #dcfce7; color: #166534;
+  }
+  .nb-contractor-actions { display: flex; gap: 10px; align-items: center; }
+  .nb-btn-sm { font-size: .82rem; font-weight: 600; padding: 6px 14px; border-radius: 5px; transition: all .15s; }
+  .nb-btn-primary-sm { background: var(--nb-blue); color: var(--nb-white); }
+  .nb-btn-primary-sm:hover { background: #1560c8; text-decoration: none; }
+  .nb-btn-outline-sm { border: 1px solid var(--nb-blue); color: var(--nb-blue); }
+  .nb-btn-outline-sm:hover { background: var(--nb-blue); color: var(--nb-white); text-decoration: none; }
+  .nb-no-contractors {
+    background: var(--nb-gray); border-radius: var(--nb-radius);
+    padding: 40px; text-align: center; color: var(--nb-muted);
+  }
+
+  .nb-cta-band {
+    background: var(--nb-navy); border-radius: var(--nb-radius);
+    padding: 40px; text-align: center; margin: 40px 0 64px; color: var(--nb-white);
+  }
+  .nb-cta-band h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+  .nb-cta-band p { color: rgba(255,255,255,.75); margin-bottom: 20px; }
+  .nb-btn-gold {
+    display: inline-block; background: var(--nb-gold); color: var(--nb-navy);
+    font-weight: 700; padding: 12px 28px; border-radius: 6px;
+    transition: background .15s;
+  }
+  .nb-btn-gold:hover { background: #d9a040; text-decoration: none; }
+
+  /* FAQ */
+  .nb-faq-section { background: #f8fafc; border-top: 1px solid #e5e7eb; padding: 48px 0; }
+  .nb-faq-section h2 { font-size: 1.25rem; font-weight: 800; color: var(--nb-navy); margin-bottom: 24px; }
+  .nb-faq-list { max-width: 760px; }
+  .nb-faq-list details { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px; background: #fff; overflow: hidden; }
+  .nb-faq-list summary { padding: 14px 18px; font-weight: 600; font-size: .9rem; color: var(--nb-navy); cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .nb-faq-list summary::-webkit-details-marker { display: none; }
+  .nb-faq-list summary::after { content: '+'; font-size: 1.1rem; color: var(--nb-blue); flex-shrink: 0; transition: transform .2s; }
+  .nb-faq-list details[open] summary::after { transform: rotate(45deg); }
+  .nb-faq-list details p { padding: 0 18px 16px; font-size: .88rem; line-height: 1.65; color: #374151; margin: 0; }
+</style>
+
+<section class="nb-city-hero">
+  <div class="nb-city-hero-inner">
+    <div class="nb-city-hero-text">
+      <nav class="nb-breadcrumb" aria-label="Breadcrumb">
+        <a href="/">Home</a> &rsaquo;
+        <a href="/locations/">Locations</a> &rsaquo;
+        <a href="/locations/{{ county.slug }}/">{{ county.name }}</a> &rsaquo;
+        <span>{{ city_name }}</span>
+      </nav>
+      <h1>{{ h1 }}</h1>
+      <p>{{ meta_description }}</p>
+      {% if contractor_count %}
+        <p style="margin-top:8px;font-size:.9rem;color:rgba(255,255,255,.6)">
+          {{ contractor_count }} active licensed contractors found
+        </p>
+      {% endif %}
+    </div>
+    <div class="nb-city-mascot" aria-hidden="true">
+      <img src="/static/assets/img/NB_ElConstructor.png"
+           alt="NexaBuilder contractor mascot"
+           width="160" height="240"
+           loading="eager">
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="nb-body-content">
+    {% if body_html %}
+      <div class="nb-page-body">{{ body_html | safe }}</div>
+    {% endif %}
+
+    <h2>Licensed Contractors in {{ city_name }}</h2>
+
+    {% if contractors %}
+    <div class="nb-contractor-list">
+      {% for con in contractors %}
+      <div class="nb-contractor-card">
+        <div>
+          <div class="nb-contractor-name">{{ con.business_name }}</div>
+          <div class="nb-contractor-meta">
+            {% if con.classifications %}{{ con.classifications }}{% endif %}
+            {% if con.license_no %} &middot; License #{{ con.license_no }}{% endif %}
+            {% if con.city %} &middot; {{ con.city }}{% endif %}
+          </div>
+          {% if con.primary_status == 'Active' %}
+            <span class="nb-contractor-badge">✓ Active License</span>
+          {% endif %}
+        </div>
+        <div class="nb-contractor-actions">
+          {% if con.phone %}
+            <a href="tel:{{ con.phone }}" class="nb-btn-sm nb-btn-outline-sm">{{ con.phone }}</a>
+          {% endif %}
+          <a href="/get-quote/?city={{ city_slug }}&county={{ county.slug }}" class="nb-btn-sm nb-btn-primary-sm">Get Quote</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if contractor_count > 20 %}
+      <p style="color:var(--nb-muted);font-size:.875rem;margin-bottom:16px">
+        Showing 20 of {{ contractor_count }} contractors. <a href="/get-quote/?city={{ city_slug }}">Get matched with the best fit &rarr;</a>
+      </p>
+    {% endif %}
+    {% else %}
+    <div class="nb-no-contractors">
+      <p>Our decision engine will match you with the right contractor for your project in {{ city_name }}.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="nb-cta-band">
+    <h3>Get a Free Estimate in {{ city_name }}</h3>
+    <p>Tell us about your project and we'll match you with licensed contractors who serve {{ city_name }}, {{ county.name }}.</p>
+    <a href="/get-quote/?city={{ city_slug }}&county={{ county.slug }}" class="nb-btn-gold">Get Free Estimates</a>
+  </div>
+</div>
+
+<section class="nb-faq-section">
+  <div class="container">
+    <h2>Common Questions About Contractors in {{ city_name }}</h2>
+    <div class="nb-faq-list">
+      <details>
+        <summary>How do I find a licensed contractor in {{ city_name }}, California?</summary>
+        <p>NexaBuilder makes it easy to find CSLB-licensed contractors in {{ city_name }}. Submit your project details and our matching engine will connect you with up to three verified contractors who serve {{ city_name }}, {{ county.name }} County — within 48 hours, at no cost.</p>
+      </details>
+      <details>
+        <summary>Are the contractors in {{ city_name }} verified by the CSLB?</summary>
+        <p>Yes. All {{ contractor_count }} contractors listed for {{ city_name }} are cross-referenced with the California Contractors State License Board (CSLB) database and must maintain an Active license, valid insurance, and bonding to appear in NexaBuilder results.</p>
+      </details>
+      <details>
+        <summary>What types of contractors serve {{ city_name }}?</summary>
+        <p>Contractors available in {{ city_name }} include general building contractors, home remodeling specialists, roofing contractors, licensed plumbers, electricians, HVAC technicians, pool and spa installers, and licensed landscapers — all verified through CSLB.</p>
+      </details>
+    </div>
+  </div>
+</section>
+{% endblock %}

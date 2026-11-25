@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block schema_json %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "@id": "https://www.nexabuilder.com/locations/{{ county.slug }}/#business",
+      "name": "NexaBuilder — {{ county.name }} County Contractors",
+      "description": "{{ meta_description }}",
+      "url": "https://www.nexabuilder.com/locations/{{ county.slug }}/",
+      "telephone": "+12138784536",
+      "areaServed": {
+        "@type": "AdministrativeArea",
+        "name": "{{ county.name }} County, California"
+      },
+      "parentOrganization": {"@id": "https://www.nexabuilder.com/#business"}
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How many licensed contractors does NexaBuilder have in {{ county.name }} County?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "NexaBuilder maintains a network of {{ contractor_count|int }} active, CSLB-verified licensed contractors serving {{ county.name }} County. This includes general contractors, plumbers, electricians, roofers, landscapers, and pool installation specialists."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What types of contractors can I find in {{ county.name }} County?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "In {{ county.name }} County, NexaBuilder matches homeowners with general contractors, remodeling contractors, roofing specialists, plumbers, electricians, HVAC technicians, landscapers, and pool installation contractors — all CSLB-licensed."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I get contractor bids for my {{ county.name }} County project?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Submit your project details at NexaBuilder.com. Our matching engine evaluates your project scope, location within {{ county.name }} County, and preferred timeline to connect you with up to three pre-screened contractors within 48 hours — free of charge."
+          }
+        }
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.nexabuilder.com/"},
+        {"@type": "ListItem", "position": 2, "name": "Locations", "item": "https://www.nexabuilder.com/locations/"},
+        {"@type": "ListItem", "position": 3, "name": "{{ county.name }} County", "item": "https://www.nexabuilder.com/locations/{{ county.slug }}/"}
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<style>
+  .nb-county-hero {
+    background: linear-gradient(135deg, var(--nb-navy) 0%, #142240 100%);
+    color: var(--nb-white); padding: 0; overflow: hidden;
+  }
+  .nb-county-hero-inner {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: flex-end; max-width: 1200px; margin: 0 auto;
+    padding: 48px 24px 0; gap: 24px;
+  }
+  .nb-county-hero-text { padding-bottom: 40px; }
+  .nb-county-hero h1 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); font-weight: 800; margin-bottom: 12px; }
+  .nb-county-hero p { color: rgba(255,255,255,.8); font-size: 1rem; max-width: 640px; margin-bottom: 16px; }
+  .nb-stat {
+    display: inline-block; background: rgba(200,146,42,.2); border: 1px solid rgba(200,146,42,.5);
+    color: var(--nb-gold); font-weight: 700; font-size: .9rem;
+    padding: 4px 12px; border-radius: 20px;
+  }
+  .nb-county-mascot { width: 180px; flex-shrink: 0; align-self: flex-end; }
+  .nb-county-mascot img {
+    width: 100%; height: auto; display: block;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,.35));
+  }
+  @media (max-width: 680px) {
+    .nb-county-hero-inner { grid-template-columns: 1fr; }
+    .nb-county-mascot { display: none; }
+    .nb-county-hero-text { padding-bottom: 32px; }
+  }
+
+  .nb-breadcrumb { padding: 12px 0; font-size: .85rem; color: var(--nb-muted); }
+  .nb-breadcrumb a { color: var(--nb-blue); }
+
+  .nb-cities-section { padding: 40px 0 64px; }
+  .nb-cities-section h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 24px; color: var(--nb-navy); }
+  .nb-city-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .nb-city-pill {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 16px;
+    font-size: .9rem; color: var(--nb-navy); font-weight: 500;
+    transition: all .15s;
+  }
+  .nb-city-pill:hover { border-color: var(--nb-blue); color: var(--nb-blue); background: #f0f6ff; text-decoration: none; }
+  .nb-city-pill .arrow { color: var(--nb-muted); font-size: .8rem; }
+
+  .nb-cta-band {
+    background: var(--nb-gray); border-radius: var(--nb-radius);
+    padding: 40px; text-align: center; margin: 48px 0;
+  }
+  .nb-cta-band h3 { font-size: 1.3rem; font-weight: 700; color: var(--nb-navy); margin-bottom: 8px; }
+  .nb-cta-band p { color: var(--nb-muted); margin-bottom: 20px; }
+  .nb-btn-primary {
+    display: inline-block; background: var(--nb-blue); color: var(--nb-white);
+    font-weight: 700; padding: 12px 28px; border-radius: 6px; font-size: .95rem;
+    transition: background .15s;
+  }
+  .nb-btn-primary:hover { background: #1560c8; text-decoration: none; }
+
+  /* FAQ */
+  .nb-faq-section { background: #f8fafc; border-top: 1px solid #e5e7eb; padding: 48px 0; }
+  .nb-faq-section h2 { font-size: 1.3rem; font-weight: 800; color: var(--nb-navy); margin-bottom: 24px; }
+  .nb-faq-list { max-width: 760px; }
+  .nb-faq-list details { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px; background: #fff; overflow: hidden; }
+  .nb-faq-list summary { padding: 14px 18px; font-weight: 600; font-size: .92rem; color: var(--nb-navy); cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .nb-faq-list summary::-webkit-details-marker { display: none; }
+  .nb-faq-list summary::after { content: '+'; font-size: 1.1rem; color: var(--nb-blue); flex-shrink: 0; transition: transform .2s; }
+  .nb-faq-list details[open] summary::after { transform: rotate(45deg); }
+  .nb-faq-list details p { padding: 0 18px 16px; font-size: .9rem; line-height: 1.65; color: #374151; margin: 0; }
+</style>
+
+<section class="nb-county-hero">
+  <div class="nb-county-hero-inner">
+    <div class="nb-county-hero-text">
+      <nav class="nb-breadcrumb" aria-label="Breadcrumb" style="margin-bottom:16px">
+        <a href="/" style="color:rgba(255,255,255,.6)">Home</a> &rsaquo;
+        <a href="/locations/" style="color:rgba(255,255,255,.6)">Locations</a> &rsaquo;
+        <span>{{ county.name }}</span>
+      </nav>
+      <h1>{{ h1 }}</h1>
+      <p>{{ meta_description }}</p>
+      {% if contractor_count %}
+        <span class="nb-stat">{{ contractor_count|int }} Active Licensed Contractors</span>
+      {% endif %}
+    </div>
+    <div class="nb-county-mascot" aria-hidden="true">
+      <img src="/static/assets/img/NB_ElConstructorsolo.png"
+           alt="NexaBuilder contractor"
+           width="180" height="270"
+           loading="eager">
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <section class="nb-cities-section">
+    {% if cities %}
+      <h2>Cities in {{ county.name }} County</h2>
+      <div class="nb-city-grid">
+        {% for city in cities %}
+        <a class="nb-city-pill" href="/locations/{{ county.slug }}/{{ city.slug }}/">
+          <span>{{ city.name }}</span>
+          <span class="arrow">&rsaquo;</span>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <h2>Find Contractors in {{ county.name }} County</h2>
+      <p style="color:var(--nb-muted);margin-bottom:24px">
+        We have {{ contractor_count|int }} licensed contractors serving {{ county.name }} County.
+        Tell us about your project and we'll match you with the right pro.
+      </p>
+    {% endif %}
+  </section>
+
+  <div class="nb-cta-band">
+    <h3>Ready to find a contractor in {{ county.name }}?</h3>
+    <p>Get matched with licensed, verified pros in your area — free estimates, no commitment.</p>
+    <a href="/get-quote/?county={{ county.slug }}" class="nb-btn-primary">Get Free Estimates</a>
+  </div>
+</div>
+
+<section class="nb-faq-section">
+  <div class="container">
+    <h2>Common Questions</h2>
+    <div class="nb-faq-list">
+      <details>
+        <summary>How many licensed contractors does NexaBuilder have in {{ county.name }} County?</summary>
+        <p>NexaBuilder maintains a network of {{ contractor_count|int }} active, CSLB-verified licensed contractors serving {{ county.name }} County, covering general contracting, plumbing, electrical, roofing, landscaping, and pool installation.</p>
+      </details>
+      <details>
+        <summary>What types of contractors can I find in {{ county.name }} County?</summary>
+        <p>In {{ county.name }} County, NexaBuilder matches homeowners with general contractors, remodeling contractors, roofing specialists, plumbers, electricians, HVAC technicians, landscapers, and pool installation contractors — all CSLB-licensed.</p>
+      </details>
+      <details>
+        <summary>How do I get contractor bids for my {{ county.name }} County project?</summary>
+        <p>Submit your project details above or at NexaBuilder.com. Our matching engine evaluates your project scope, location, and preferred timeline to connect you with up to three pre-screened contractors within 48 hours — free of charge.</p>
+      </details>
+    </div>
+  </div>
+</section>
+{% endblock %}

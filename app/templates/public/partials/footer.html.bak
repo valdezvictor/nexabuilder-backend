@@ -1,0 +1,114 @@
+<style>
+  /* ── NexaBuilder Footer ── */
+  .nb-footer {
+    background: var(--nb-navy);
+    color: rgba(255,255,255,.75);
+    padding: 56px 0 24px;
+    margin-top: 64px;
+  }
+  .nb-footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid rgba(255,255,255,.12);
+  }
+  .nb-footer-brand { }
+  .nb-footer-brand .nb-logo-text { color: var(--nb-white); font-size: 1.1rem; font-weight: 700; }
+  .nb-footer-brand .nb-logo-text span { color: var(--nb-gold); }
+  .nb-footer-brand p { margin-top: 12px; font-size: .875rem; line-height: 1.7; }
+  .nb-footer h4 {
+    color: var(--nb-white); font-size: .8rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;
+  }
+  .nb-footer ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .nb-footer ul a { color: rgba(255,255,255,.65); font-size: .875rem; transition: color .15s; }
+  .nb-footer ul a:hover { color: var(--nb-white); text-decoration: none; }
+  .nb-footer-cta {
+    margin-top: 32px; padding: 20px; background: rgba(200,146,42,.15);
+    border: 1px solid rgba(200,146,42,.4); border-radius: var(--nb-radius);
+    text-align: center;
+  }
+  .nb-footer-cta p { font-size: .95rem; margin-bottom: 12px; color: rgba(255,255,255,.85); }
+  .nb-footer-cta a {
+    display: inline-block; background: var(--nb-gold); color: var(--nb-navy);
+    font-weight: 700; padding: 10px 24px; border-radius: 6px; font-size: .9rem;
+    transition: background .15s;
+  }
+  .nb-footer-cta a:hover { background: #d9a040; text-decoration: none; }
+  .nb-footer-bottom {
+    margin-top: 24px;
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    gap: 12px; font-size: .8rem; color: rgba(255,255,255,.45);
+  }
+  .nb-footer-bottom a { color: rgba(255,255,255,.45); }
+  .nb-footer-bottom a:hover { color: rgba(255,255,255,.8); text-decoration: none; }
+
+  @media (max-width: 768px) {
+    .nb-footer-grid { grid-template-columns: 1fr 1fr; }
+    .nb-footer-brand { grid-column: 1 / -1; }
+  }
+  @media (max-width: 480px) {
+    .nb-footer-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<footer class="nb-footer">
+  <div class="container">
+    <div class="nb-footer-grid">
+      <div class="nb-footer-brand">
+        <div class="nb-logo-text">Nexa<span>Builder</span></div>
+        <p>California's construction connection platform. Find licensed contractors, get accurate cost estimates, and manage your project from start to finish.</p>
+        <div class="nb-footer-cta">
+          <p>Ready to start your project?</p>
+          <a href="/get-quote/">Get a Free Estimate</a>
+        </div>
+      </div>
+
+      <div>
+        <h4>Services</h4>
+        <ul>
+          <li><a href="/services/roofing/">Roofing</a></li>
+          <li><a href="/services/hvac/">HVAC</a></li>
+          <li><a href="/services/plumbing/">Plumbing</a></li>
+          <li><a href="/services/electrical/">Electrical</a></li>
+          <li><a href="/services/remodeling/">Remodeling</a></li>
+          <li><a href="/services/">All Services</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Locations</h4>
+        <ul>
+          <li><a href="/locations/los-angeles/">Los Angeles</a></li>
+          <li><a href="/locations/orange-county/">Orange County</a></li>
+          <li><a href="/locations/san-diego/">San Diego</a></li>
+          <li><a href="/locations/riverside/">Riverside</a></li>
+          <li><a href="/locations/san-bernardino/">San Bernardino</a></li>
+          <li><a href="/locations/">All Locations</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="/about/">About Us</a></li>
+          <li><a href="/guides/">Contractor Guides</a></li>
+          <li><a href="/blog/">Blog</a></li>
+          <li><a href="/for-contractors/">For Contractors</a></li>
+          <li><a href="/contact/">Contact</a></li>
+          <li><a href="/es/locations/" hreflang="es">En Español</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="nb-footer-bottom">
+      <span>&copy; {{ current_year | default(2026) }} NexaBuilder. All rights reserved.</span>
+      <div style="display:flex;gap:16px">
+        <a href="/privacy/">Privacy Policy</a>
+        <a href="/terms/">Terms of Service</a>
+        <a href="/sitemap.xml">Sitemap</a>
+      </div>
+    </div>
+  </div>
+</footer>

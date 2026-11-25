@@ -1,0 +1,300 @@
+"""
+NexaBuilder — Public location page router
+=========================================
+Serves SSR HTML for /locations/, /locations/{county}/, /locations/{county}/{city}/
+and their /es/ mirrors.
+
+Designed to slot into the existing app (app/main.py) as:
+    from app.routers.pages.locations import router as pages_locations_router
+    application.include_router(pages_locations_router)
+
+Uses the existing app.db connection pool.
+"""
+
+from __future__ import annotations
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, Request, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from fastapi import Depends
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+# ── Template setup ────────────────────────────────────────────────────────────
+_TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "public"
+templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+
+# ── Loop Navigation Matrix ────────────────────────────────────────────────────
+# Maps page_id → which nav keys are "active"
+NAV_MATRIX: dict[str, set[str]] = {
+    "home":         {"home"},
+    "locations":    {"locations"},
+    "county":       {"locations"},
+    "city":         {"locations"},
+    "services":     {"services"},
+    "service":      {"services"},
+    "guides":       {"guides"},
+    "guide":        {"guides"},
+    "blog":         {"blog"},
+    "post":         {"blog"},
+    "get_quote":    {"get_quote"},
+    "es_county":    {"locations"},
+    "es_city":      {"locations"},
+}
+
+def nav_active(page_id: str, nav_key: str) -> str:
+    """Return 'active' if nav_key is active for this page, else ''."""
+    return "active" if nav_key in NAV_MATRIX.get(page_id, set()) else ""
+
+templates.env.globals["nav_active"] = nav_active
+
+# ── EN/ES URL helpers ─────────────────────────────────────────────────────────
+def _compute_lang_hrefs(path: str) -> tuple[str, str]:
+    """
+    Given the request path, return (es_href, en_href).
+    - EN page /locations/foo/bar/  → ES mirror /es/locations/foo/bar/
+    - ES page /es/locations/foo/   → EN mirror /locations/foo/
+    """
+    if path.startswith("/es/"):
+        en_path = "/" + path[4:]          # strip /es/
+        es_path = path
+    else:
+        en_path = path
+        es_path = "/es" + path
+    return es_path, en_path
+
+# ── Base context builder ──────────────────────────────────────────────────────
+def base_context(request: Request, page_id: str, lang: str = "en", **extra) -> dict:
+    path = request.url.path
+    es_href, en_href = _compute_lang_hrefs(path)
+    canonical = f"https://nexabuilder.com{path}"
+    hreflang_en = f"https://nexabuilder.com{en_href}"
+    hreflang_es = f"https://nexabuilder.com{es_href}"
+    ctx = {
+        "request":      request,
+        "page_id":      page_id,
+        "lang":         lang,
+        "es_href":      es_href,
+        "en_href":      en_href,
+        "canonical":    canonical,
+        "hreflang_en":  hreflang_en,
+        "hreflang_es":  hreflang_es,
+    }
+    ctx["current_year"] = datetime.now().year
+    ctx.update(extra)
+    return ctx
+
+# ── Router ────────────────────────────────────────────────────────────────────
+router = APIRouter(tags=["public-pages"])
+
+# ── DB helper ─────────────────────────────────────────────────────────────────
+async def _get_db(request: Request):
+    """Get a DB connection from the existing app pool."""
+    # The existing app stores the pool on app.state.db_pool (asyncpg)
+    # or uses app.db module — we try both patterns.
+    pool = getattr(request.app.state, "db_pool", None)
+    if pool:
+        return await pool.acquire()
+    # Fallback: import the existing db module's get_db
+    from app.db import get_connection
+    return await get_connection()
+
+
+# ── /locations/ — county index ────────────────────────────────────────────────
+@router.get("/locations/", response_class=HTMLResponse)
+async def locations_index(request: Request):
+    try:
+        from app.db import get_connection
+        conn = await get_connection()
+        counties = await conn.fetch(
+            "SELECT slug, name, city_count, meta_description FROM nb_counties ORDER BY name"
+        )
+        await conn.close()
+    except Exception:
+        counties = []
+
+    ctx = base_context(
+        request, "locations",
+        title="Find Local Contractors by Location | NexaBuilder",
+        meta_description="Find licensed contractors in your area. NexaBuilder covers Los Angeles, San Diego, Orange County and across California.",
+        counties=counties,
+    )
+    return templates.TemplateResponse("locations/index.html", ctx)
+
+
+# ── /locations/{county_slug}/ — county page ───────────────────────────────────
+@router.get("/locations/{county_slug}/", response_class=HTMLResponse)
+async def county_page(request: Request, county_slug: str):
+    try:
+        from app.db import get_connection
+        conn = await get_connection()
+        county = await conn.fetchrow(
+            "SELECT * FROM nb_counties WHERE slug = $1", county_slug
+        )
+        if not county:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="County not found")
+
+        cities = await conn.fetch(
+            """SELECT slug, name, h1_title, contractor_count
+               FROM nb_cities WHERE county_slug = $1
+               ORDER BY name""",
+            county_slug
+        )
+
+        # Contractor count from existing table (enriched data)
+        contractor_count = await conn.fetchval(
+            """SELECT COUNT(*) FROM contractors
+               WHERE LOWER(REPLACE(county,' ','-')) = $1
+                  OR LOWER(county) = LOWER($2)""",
+            county_slug, county["name"]
+        )
+        await conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        county = {"slug": county_slug, "name": county_slug.replace("-"," ").title(),
+                  "h1_title": None, "meta_description": None}
+        cities = []
+        contractor_count = 0
+
+    h1 = county.get("h1_title") or f"Find Contractors in {county['name']} County"
+    meta_desc = county.get("meta_description") or \
+        f"Connect with licensed contractors in {county['name']} County, CA. Get free estimates."
+
+    ctx = base_context(
+        request, "county",
+        title=f"Contractors in {county['name']} County | NexaBuilder",
+        meta_description=meta_desc,
+        county=county,
+        cities=cities,
+        contractor_count=contractor_count,
+        h1=h1,
+    )
+    return templates.TemplateResponse("locations/county.html", ctx)
+
+
+# ── /locations/{county_slug}/{city_slug}/ — city page ────────────────────────
+@router.get("/locations/{county_slug}/{city_slug}/", response_class=HTMLResponse)
+async def city_page(request: Request, county_slug: str, city_slug: str):
+    try:
+        from app.db import get_connection
+        conn = await get_connection()
+
+        county = await conn.fetchrow(
+            "SELECT * FROM nb_counties WHERE slug = $1", county_slug
+        )
+        city = await conn.fetchrow(
+            "SELECT * FROM nb_cities WHERE county_slug = $1 AND slug = $2",
+            county_slug, city_slug
+        )
+
+        if not county:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="County not found")
+
+        # City may not be in nb_cities yet — build stub from contractors data
+        if not city:
+            city_name = city_slug.replace("-", " ").title()
+        else:
+            city_name = city["name"]
+
+        # Pull nearby contractors from existing contractors table
+        contractors = await conn.fetch(
+            """SELECT id, business_name, city, county, phone, email,
+                      license_no, classifications, primary_status
+               FROM contractors
+               WHERE LOWER(REPLACE(city,' ','-')) = $1
+                 AND (LOWER(REPLACE(county,' ','-')) = $2
+                      OR LOWER(county) = LOWER($3))
+                 AND primary_status = 'Active'
+               ORDER BY business_name
+               LIMIT 20""",
+            city_slug, county_slug, county["name"] if county else ""
+        )
+        contractor_count = await conn.fetchval(
+            """SELECT COUNT(*) FROM contractors
+               WHERE LOWER(REPLACE(city,' ','-')) = $1
+                 AND primary_status = 'Active'""",
+            city_slug
+        )
+        await conn.close()
+    except HTTPException:
+        raise
+    except Exception:
+        county = {"slug": county_slug, "name": county_slug.replace("-"," ").title()}
+        city = None
+        city_name = city_slug.replace("-", " ").title()
+        contractors = []
+        contractor_count = 0
+
+    if city:
+        h1 = city.get("h1_title") or f"Contractors in {city_name}, {county['name']}"
+        meta_desc = city.get("meta_description") or \
+            f"Find licensed contractors in {city_name}, {county['name']} County, CA."
+        body_html = city.get("body_html") or ""
+    else:
+        h1 = f"Contractors in {city_name}, {county['name']}"
+        meta_desc = f"Find licensed contractors in {city_name}, {county['name']} County, CA."
+        body_html = ""
+
+    ctx = base_context(
+        request, "city",
+        title=f"{h1} | NexaBuilder",
+        meta_description=meta_desc,
+        county=county,
+        city=city,
+        city_name=city_name,
+        city_slug=city_slug,
+        contractors=contractors,
+        contractor_count=contractor_count,
+        h1=h1,
+        body_html=body_html,
+    )
+    return templates.TemplateResponse("locations/city.html", ctx)
+
+
+# ── ES mirrors ────────────────────────────────────────────────────────────────
+@router.get("/es/locations/{county_slug}/", response_class=HTMLResponse)
+async def es_county_page(request: Request, county_slug: str):
+    """Spanish county page — reuses same data, renders es template."""
+    try:
+        from app.db import engine
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            row = await conn.execute(
+                text("SELECT * FROM nb_counties WHERE slug = :slug"), {"slug": county_slug}
+            )
+            county = dict(row.mappings().first() or {}) or None
+            if county:
+                cr = await conn.execute(
+                    text("SELECT slug, name FROM nb_cities WHERE county_slug = :slug ORDER BY name"),
+                    {"slug": county_slug}
+                )
+                cities = [dict(r) for r in cr.mappings().fetchall()]
+            else:
+                cities = []
+    except Exception as e:
+        county = None
+        cities = []
+
+    if not county:
+        raise HTTPException(status_code=404)
+
+    h1 = county.get("h1_title") or f"Contratistas en el Condado de {county['name']}"
+    meta_desc = county.get("meta_description_es") or \
+        f"Encuentra contratistas con licencia en el Condado de {county['name']}, CA."
+
+    ctx = base_context(
+        request, "es_county", lang="es",
+        title=f"Contratistas en {county['name']} | NexaBuilder",
+        meta_description=meta_desc,
+        county=county,
+        cities=cities,
+        h1=h1,
+    )
+    return templates.TemplateResponse("locations/county_es.html", ctx)
