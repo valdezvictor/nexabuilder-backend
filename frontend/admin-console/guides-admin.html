@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guides Admin — NexaBuilder</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;height:100vh;display:flex;flex-direction:column}
+.topbar{background:#1a1f2e;border-bottom:1px solid #2d3748;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+.topbar h1{font-size:16px;font-weight:600;color:#fff}
+.topbar .badge{background:#2d3748;color:#a0aec0;font-size:11px;padding:2px 8px;border-radius:10px}
+.topbar-actions{margin-left:auto;display:flex;gap:8px}
+.btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-success{background:#10b981;color:#fff}.btn-success:hover{background:#059669}
+.btn-warning{background:#f59e0b;color:#fff}.btn-warning:hover{background:#d97706}
+.btn-ghost{background:transparent;color:#a0aec0;border:1px solid #2d3748}.btn-ghost:hover{background:#2d3748;color:#fff}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.layout{display:flex;flex:1;overflow:hidden}
+/* SIDEBAR */
+.sidebar{width:300px;background:#151823;border-right:1px solid #2d3748;display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:12px 16px;border-bottom:1px solid #2d3748}
+.search-box{width:100%;background:#0f1117;border:1px solid #2d3748;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:13px;outline:none}
+.search-box:focus{border-color:#3b82f6}
+.filter-tabs{display:flex;gap:4px;margin-top:8px}
+.ftab{flex:1;padding:4px 0;text-align:center;font-size:11px;border-radius:4px;cursor:pointer;border:1px solid #2d3748;color:#a0aec0;background:transparent;transition:all .15s}
+.ftab.active{background:#3b82f6;border-color:#3b82f6;color:#fff}
+.guide-list{flex:1;overflow-y:auto}
+.guide-item{padding:11px 16px;border-bottom:1px solid #1e2435;cursor:pointer;transition:background .1s}
+.guide-item:hover{background:#1e2435}
+.guide-item.active{background:#1e2a3a;border-left:3px solid #3b82f6}
+.guide-item .gi-title{font-size:13px;font-weight:500;color:#e2e8f0;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guide-item .gi-meta{font-size:11px;color:#718096;display:flex;gap:8px;align-items:center}
+.status-pill{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.status-PUBLISHED{background:#064e3b;color:#6ee7b7}
+.status-DRAFT{background:#1e3a5f;color:#93c5fd}
+.status-STUB{background:#2d1b3d;color:#c084fc}
+.score-badge{font-size:11px;color:#a0aec0}
+/* EDITOR */
+.editor-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-toolbar{background:#1a1f2e;border-bottom:1px solid #2d3748;padding:10px 20px;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.editor-toolbar .sep{width:1px;background:#2d3748;height:20px;margin:0 4px}
+.editor-toolbar .spacer{flex:1}
+.editor-body{flex:1;overflow-y:auto;padding:20px}
+.empty-state{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#4a5568}
+.empty-state svg{opacity:0.3}
+.empty-state p{font-size:14px}
+/* FORM */
+.form-group{margin-bottom:16px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+label{display:block;font-size:12px;font-weight:600;color:#a0aec0;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+input[type=text],select,textarea{width:100%;background:#1a1f2e;border:1px solid #2d3748;border-radius:6px;padding:8px 12px;color:#e2e8f0;font-size:13px;outline:none;transition:border-color .15s}
+input[type=text]:focus,select:focus,textarea:focus{border-color:#3b82f6}
+select option{background:#1a1f2e}
+textarea{font-family:monospace;font-size:12px;resize:vertical;line-height:1.5}
+.meta-row{display:grid;grid-template-columns:1fr 120px 140px;gap:12px;margin-bottom:16px}
+/* STATS BAR */
+.stats-bar{background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px 16px;display:flex;gap:24px;margin-bottom:16px}
+.stat{text-align:center}
+.stat .val{font-size:18px;font-weight:700;color:#fff}
+.stat .lbl{font-size:10px;color:#718096;text-transform:uppercase;letter-spacing:.05em}
+/* STATUS MSG */
+.status-msg{padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;display:none}
+.status-msg.show{display:block}
+.status-msg.ok{background:#064e3b;color:#6ee7b7;border:1px solid #065f46}
+.status-msg.err{background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b}
+.status-msg.info{background:#1e3a5f;color:#93c5fd;border:1px solid #1e40af}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;padding:24px;width:480px;max-width:95vw}
+.modal h2{font-size:16px;margin-bottom:16px;color:#fff}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+/* SPINNER */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* REVIEW PANEL */
+.review-panel{background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:14px;margin-bottom:16px;display:none}
+.review-panel.show{display:block}
+.review-panel h4{font-size:12px;font-weight:600;color:#a0aec0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.review-panel p{font-size:13px;color:#cbd5e0;line-height:1.6}
+.review-score{font-size:28px;font-weight:700;margin-bottom:4px}
+.score-high{color:#10b981}.score-mid{color:#f59e0b}.score-low{color:#ef4444}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>⚡ Guides Admin</h1>
+  <span class="badge" id="total-badge">— guides</span>
+  <div style="font-size:12px;color:#718096">Generate → AI Review → Publish</div>
+  <div class="topbar-actions">
+    <button class="btn btn-ghost btn-sm" onclick="openCreateModal()">+ New Guide</button>
+    <button class="btn btn-warning btn-sm" id="bulk-btn" onclick="bulkPublish()">⚡ Bulk Publish All ≥75</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <input type="text" class="search-box" placeholder="Search guides..." id="search-input" oninput="filterGuides()">
+      <div class="filter-tabs">
+        <button class="ftab active" data-filter="ALL" onclick="setFilter('ALL',this)">All</button>
+        <button class="ftab" data-filter="PUBLISHED" onclick="setFilter('PUBLISHED',this)">Published</button>
+        <button class="ftab" data-filter="DRAFT" onclick="setFilter('DRAFT',this)">Draft</button>
+        <button class="ftab" data-filter="STUB" onclick="setFilter('STUB',this)">Stub</button>
+      </div>
+    </div>
+    <div class="guide-list" id="guide-list">
+      <div style="padding:20px;text-align:center;color:#4a5568;font-size:13px">Loading guides…</div>
+    </div>
+  </div>
+
+  <!-- EDITOR -->
+  <div class="editor-panel">
+    <div class="editor-toolbar" id="editor-toolbar" style="display:none">
+      <button class="btn btn-primary btn-sm" id="btn-generate" onclick="generateGuide()">⚡ Generate Content</button>
+      <button class="btn btn-ghost btn-sm" id="btn-review" onclick="reviewGuide()">🔍 AI Review</button>
+      <button class="btn btn-ghost btn-sm" id="btn-regen" onclick="regenGuide()">↺ Regenerate</button>
+      <div class="sep"></div>
+      <button class="btn btn-ghost btn-sm" onclick="saveGuide('DRAFT')">💾 Save Draft</button>
+      <button class="btn btn-primary btn-sm" onclick="saveGuide(null)">Save</button>
+      <button class="btn btn-success btn-sm" onclick="saveAndPublish()">🚀 Save & Publish</button>
+      <div class="spacer"></div>
+      <a id="btn-view" href="#" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">↗ View Live</a>
+    </div>
+
+    <div id="empty-state" class="empty-state" style="display:flex">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p>Select a guide to edit</p>
+    </div>
+
+    <div id="editor-body" class="editor-body" style="display:none">
+      <div class="status-msg" id="status-msg"></div>
+
+      <div class="meta-row">
+        <div>
+          <label>Title</label>
+          <input type="text" id="f-title" placeholder="Guide title">
+        </div>
+        <div>
+          <label>Category</label>
+          <select id="f-category">
+            <option value="how_to">How-To</option>
+            <option value="cost_guide">Cost Guide</option>
+            <option value="permit_guide">Permit Guide</option>
+            <option value="checklist">Checklist</option>
+            <option value="compliance">Compliance</option>
+          </select>
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="f-status">
+            <option value="STUB">STUB</option>
+            <option value="DRAFT">DRAFT</option>
+            <option value="PUBLISHED">PUBLISHED</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Meta Description</label>
+        <input type="text" id="f-meta" placeholder="SEO meta description (150–160 chars)">
+      </div>
+
+      <div class="form-group">
+        <label>Target Keywords (comma-separated)</label>
+        <input type="text" id="f-keywords" placeholder="e.g. ADU permit California, granny flat permit cost">
+      </div>
+
+      <div class="stats-bar" id="stats-bar" style="display:none">
+        <div class="stat"><div class="val" id="stat-words">—</div><div class="lbl">Words</div></div>
+        <div class="stat"><div class="val" id="stat-score">—</div><div class="lbl">Quality</div></div>
+        <div class="stat"><div class="val" id="stat-status">—</div><div class="lbl">Status</div></div>
+        <div class="stat"><div class="val" id="stat-updated">—</div><div class="lbl">Updated</div></div>
+      </div>
+
+      <div class="review-panel" id="review-panel">
+        <h4>AI Review Results</h4>
+        <div id="review-content"></div>
+      </div>
+
+      <div class="form-group">
+        <label>HTML Body Content</label>
+        <textarea id="f-body" rows="28" placeholder="HTML content will appear here after generation, or paste your own…"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE MODAL -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal">
+    <h2>+ Create New Guide</h2>
+    <div class="form-group">
+      <label>Title *</label>
+      <input type="text" id="new-title" placeholder="e.g. Solar Panel Installation Cost Guide" oninput="autoSlug()">
+    </div>
+    <div class="form-group">
+      <label>Slug *</label>
+      <input type="text" id="new-slug" placeholder="e.g. solar-panel-installation-cost-guide">
+    </div>
+    <div class="form-row">
+      <div>
+        <label>Category</label>
+        <select id="new-category">
+          <option value="how_to">How-To</option>
+          <option value="cost_guide">Cost Guide</option>
+          <option value="permit_guide">Permit Guide</option>
+          <option value="checklist">Checklist</option>
+          <option value="compliance">Compliance</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Target Keywords</label>
+      <input type="text" id="new-keywords" placeholder="keyword1, keyword2, keyword3">
+    </div>
+    <div class="form-group">
+      <label>Meta Description</label>
+      <input type="text" id="new-meta" placeholder="Brief SEO description">
+    </div>
+    <div class="status-msg" id="modal-status"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-primary" id="create-btn" onclick="createGuide()">Create Guide</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://api.nexabuilder.com';
+const KEY = 'GidhUSbSVmhSzpY8Xd7gfBEJJYB-ycHKz5j-JxEYSpU';
+const H = {'Content-Type':'application/json','x-admin-key':KEY};
+
+let allGuides = [];
+let currentGuide = null;
+let currentFilter = 'ALL';
+let pollTimer = null;
+
+// ── LOAD GUIDES ──────────────────────────────────────────
+async function loadGuides() {
+  try {
+    const r = await fetch(`${API}/guides`, {headers: H});
+    const data = await r.json();
+    allGuides = Array.isArray(data) ? data : (data.guides || []);
+    document.getElementById('total-badge').textContent = `${allGuides.length} guides`;
+    renderList();
+  } catch(e) {
+    document.getElementById('guide-list').innerHTML = `<div style="padding:20px;color:#ef4444;font-size:13px">Error loading guides: ${e.message}</div>`;
+  }
+}
+
+function renderList() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filtered = allGuides.filter(g => {
+    const matchFilter = currentFilter === 'ALL' || g.status === currentFilter;
+    const matchSearch = !q || g.title.toLowerCase().includes(q) || g.slug.includes(q);
+    return matchFilter && matchSearch;
+  });
+
+  if (!filtered.length) {
+    document.getElementById('guide-list').innerHTML = `<div style="padding:20px;text-align:center;color:#4a5568;font-size:13px">No guides found</div>`;
+    return;
+  }
+
+  document.getElementById('guide-list').innerHTML = filtered.map(g => `
+    <div class="guide-item ${currentGuide && currentGuide.slug === g.slug ? 'active' : ''}" onclick="selectGuide('${g.slug}')">
+      <div class="gi-title">${g.title || g.slug}</div>
+      <div class="gi-meta">
+        <span class="status-pill status-${g.status}">${g.status}</span>
+        <span class="score-badge">${g.quality_score || 0}/100</span>
+        <span>${g.word_count || 0}w</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
+function filterGuides() { renderList(); }
+
+// ── SELECT / LOAD GUIDE ──────────────────────────────────
+async function selectGuide(slug) {
+  showStatus('', '');
+  document.getElementById('review-panel').classList.remove('show');
+  try {
+    const r = await fetch(`${API}/guides/${slug}`, {headers: H});
+    const g = await r.json();
+    currentGuide = g;
+    renderList(); // re-highlight
+
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('editor-body').style.display = 'block';
+    document.getElementById('editor-toolbar').style.display = 'flex';
+
+    document.getElementById('f-title').value = g.title || '';
+    document.getElementById('f-category').value = g.category || 'how_to';
+    document.getElementById('f-status').value = g.status || 'STUB';
+    document.getElementById('f-meta').value = g.target_meta_description || '';
+    const kw = Array.isArray(g.target_keywords) ? g.target_keywords.join(', ') : (g.target_keywords || '');
+    document.getElementById('f-keywords').value = kw;
+    document.getElementById('f-body').value = g.generated_html_body || '';
+
+    // stats
+    const sb = document.getElementById('stats-bar');
+    sb.style.display = 'flex';
+    document.getElementById('stat-words').textContent = g.word_count || 0;
+    const score = g.quality_score || 0;
+    const scoreEl = document.getElementById('stat-score');
+    scoreEl.textContent = score;
+    scoreEl.className = 'val ' + (score >= 75 ? 'score-high' : score >= 50 ? 'score-mid' : 'score-low');
+    document.getElementById('stat-status').textContent = g.status || '—';
+    document.getElementById('stat-updated').textContent = g.updated_at ? g.updated_at.substring(0,10) : '—';
+
+    // view link
+    document.getElementById('btn-view').href = `https://www.nexabuilder.com/guides/${slug}/`;
+
+    // show regen if body exists
+    const hasBody = !!(g.generated_html_body && g.generated_html_body.length > 100);
+    document.getElementById('btn-regen').style.display = hasBody ? 'inline-flex' : 'none';
+
+  } catch(e) {
+    showStatus('Error loading guide: ' + e.message, 'err');
+  }
+}
+
+// ── SAVE ─────────────────────────────────────────────────
+async function saveGuide(forceStatus) {
+  if (!currentGuide) return;
+  const kw = document.getElementById('f-keywords').value.split(',').map(k => k.trim()).filter(Boolean);
+  const payload = {
+    title: document.getElementById('f-title').value,
+    category: document.getElementById('f-category').value,
+    status: forceStatus || document.getElementById('f-status').value,
+    target_meta_description: document.getElementById('f-meta').value,
+    target_keywords: kw,
+    generated_html_body: document.getElementById('f-body').value
+  };
+  showStatus('<span class="spinner"></span> Saving…', 'info');
+  try {
+    const r = await fetch(`${API}/guides/${currentGuide.slug}`, {method:'PATCH', headers:H, body:JSON.stringify(payload)});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Save failed');
+    showStatus('✓ Saved successfully', 'ok');
+    // update local list
+    const idx = allGuides.findIndex(g => g.slug === currentGuide.slug);
+    if (idx >= 0) { allGuides[idx] = {...allGuides[idx], ...payload}; renderList(); }
+  } catch(e) {
+    showStatus('✗ ' + e.message, 'err');
+  }
+}
+
+async function saveAndPublish() {
+  await saveGuide('PUBLISHED');
+  if (!currentGuide) return;
+  showStatus('<span class="spinner"></span> Publishing to live site…', 'info');
+  try {
+    const r = await fetch(`${API}/guides/${currentGuide.slug}/publish`, {method:'POST', headers:H});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Publish failed');
+    showStatus('🚀 Published! Live at nexabuilder.com/guides/' + currentGuide.slug + '/', 'ok');
+    const idx = allGuides.findIndex(g => g.slug === currentGuide.slug);
+    if (idx >= 0) { allGuides[idx].status = 'PUBLISHED'; renderList(); }
+  } catch(e) {
+    showStatus('✗ Publish error: ' + e.message, 'err');
+  }
+}
+
+// ── GENERATE ─────────────────────────────────────────────
+async function generateGuide() {
+  if (!currentGuide) return;
+  showStatus('<span class="spinner"></span> Generating content (this takes ~30–60s)…', 'info');
+  setBusy(true);
+  try {
+    const r = await fetch(`${API}/guides/${currentGuide.slug}/generate`, {method:'POST', headers:H});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Generate failed');
+    showStatus('<span class="spinner"></span> Generation started — polling for result…', 'info');
+    pollForContent(currentGuide.slug, 0);
+  } catch(e) {
+    showStatus('✗ ' + e.message, 'err');
+    setBusy(false);
+  }
+}
+
+async function regenGuide() { await generateGuide(); }
+
+function pollForContent(slug, attempt) {
+  if (attempt > 15) {
+    showStatus('⚠ Generation is taking longer than usual. Refresh or check back in a minute.', 'info');
+    setBusy(false);
+    return;
+  }
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`${API}/guides/${slug}`, {headers: H});
+      const g = await r.json();
+      if (g.generated_html_body && g.generated_html_body.length > 200) {
+        currentGuide = g;
+        document.getElementById('f-body').value = g.generated_html_body;
+        document.getElementById('stat-words').textContent = g.word_count || 0;
+        const score = g.quality_score || 0;
+        const scoreEl = document.getElementById('stat-score');
+        scoreEl.textContent = score;
+        scoreEl.className = 'val ' + (score >= 75 ? 'score-high' : score >= 50 ? 'score-mid' : 'score-low');
+        document.getElementById('btn-regen').style.display = 'inline-flex';
+        showStatus('✓ Content generated! Review below and publish when ready.', 'ok');
+        setBusy(false);
+        const idx = allGuides.findIndex(g2 => g2.slug === slug);
+        if (idx >= 0) { allGuides[idx] = {...allGuides[idx], ...g}; renderList(); }
+      } else {
+        showStatus(`<span class="spinner"></span> Still generating… (${attempt + 1}/15)`, 'info');
+        pollForContent(slug, attempt + 1);
+      }
+    } catch(e) {
+      pollForContent(slug, attempt + 1);
+    }
+  }, 8000);
+}
+
+// ── AI REVIEW ────────────────────────────────────────────
+async function reviewGuide() {
+  if (!currentGuide) return;
+  showStatus('<span class="spinner"></span> Running AI review…', 'info');
+  setBusy(true);
+  try {
+    const r = await fetch(`${API}/guides/${currentGuide.slug}/review`, {method:'POST', headers:H});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Review failed');
+    // poll for updated score/notes
+    setTimeout(async () => {
+      const r2 = await fetch(`${API}/guides/${currentGuide.slug}`, {headers:H});
+      const g = await r2.json();
+      currentGuide = g;
+      const score = g.quality_score || 0;
+      const scoreEl = document.getElementById('stat-score');
+      scoreEl.textContent = score;
+      scoreEl.className = 'val ' + (score >= 75 ? 'score-high' : score >= 50 ? 'score-mid' : 'score-low');
+      const rp = document.getElementById('review-panel');
+      const rc = document.getElementById('review-content');
+      const notes = g.content_notes || data.notes || data.message || 'Review complete.';
+      rc.innerHTML = `
+        <div class="review-score ${score >= 75 ? 'score-high' : score >= 50 ? 'score-mid' : 'score-low'}">${score}/100</div>
+        <p>${notes}</p>
+      `;
+      rp.classList.add('show');
+      showStatus(score >= 75 ? `✓ Score: ${score}/100 — ready to publish!` : `Review complete. Score: ${score}/100`, score >= 75 ? 'ok' : 'info');
+      setBusy(false);
+      const idx = allGuides.findIndex(g2 => g2.slug === g.slug);
+      if (idx >= 0) { allGuides[idx] = {...allGuides[idx], quality_score: score}; renderList(); }
+    }, 6000);
+  } catch(e) {
+    showStatus('✗ ' + e.message, 'err');
+    setBusy(false);
+  }
+}
+
+// ── BULK PUBLISH ─────────────────────────────────────────
+async function bulkPublish() {
+  const qualifying = allGuides.filter(g => (g.quality_score || 0) >= 75 && g.status !== 'PUBLISHED');
+  if (!qualifying.length) {
+    showStatus('No unpublished guides with score ≥75 found.', 'info');
+    return;
+  }
+  if (!confirm(`Publish ${qualifying.length} guides with score ≥75?`)) return;
+  const btn = document.getElementById('bulk-btn');
+  btn.disabled = true;
+  btn.textContent = '⚡ Publishing…';
+  try {
+    const r = await fetch(`${API}/guides/bulk-publish`, {method:'POST', headers:H});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Bulk publish failed');
+    alert(`✓ Bulk publish complete: ${data.published || 0} guides published.`);
+    await loadGuides();
+  } catch(e) {
+    alert('Bulk publish error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Bulk Publish All ≥75';
+  }
+}
+
+// ── CREATE MODAL ──────────────────────────────────────────
+function openCreateModal() {
+  document.getElementById('new-title').value = '';
+  document.getElementById('new-slug').value = '';
+  document.getElementById('new-keywords').value = '';
+  document.getElementById('new-meta').value = '';
+  hideModalStatus();
+  document.getElementById('create-modal').classList.add('open');
+  setTimeout(() => document.getElementById('new-title').focus(), 100);
+}
+function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
+
+function autoSlug() {
+  const t = document.getElementById('new-title').value;
+  document.getElementById('new-slug').value = t.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+async function createGuide() {
+  const title = document.getElementById('new-title').value.trim();
+  const slug = document.getElementById('new-slug').value.trim();
+  if (!title || !slug) { showModalStatus('Title and slug are required.', 'err'); return; }
+  const kw = document.getElementById('new-keywords').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const payload = {title, slug, category: document.getElementById('new-category').value, target_keywords: kw, target_meta_description: document.getElementById('new-meta').value};
+  document.getElementById('create-btn').disabled = true;
+  showModalStatus('<span class="spinner"></span> Creating…', 'info');
+  try {
+    const r = await fetch(`${API}/guides`, {method:'POST', headers:H, body:JSON.stringify(payload)});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Create failed');
+    closeCreateModal();
+    await loadGuides();
+    selectGuide(slug);
+  } catch(e) {
+    showModalStatus('✗ ' + e.message, 'err');
+  } finally {
+    document.getElementById('create-btn').disabled = false;
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function showStatus(msg, type) {
+  const el = document.getElementById('status-msg');
+  el.innerHTML = msg;
+  el.className = 'status-msg ' + (msg ? 'show ' + type : '');
+}
+function showModalStatus(msg, type) {
+  const el = document.getElementById('modal-status');
+  el.innerHTML = msg;
+  el.className = 'status-msg ' + (msg ? 'show ' + type : '');
+}
+function hideModalStatus() { document.getElementById('modal-status').className = 'status-msg'; }
+
+function setBusy(busy) {
+  ['btn-generate','btn-review','btn-regen'].forEach(id => {
+    document.getElementById(id).disabled = busy;
+  });
+}
+
+// close modal on overlay click
+document.getElementById('create-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeCreateModal();
+});
+
+loadGuides();
+</script>
+</body>
+</html>

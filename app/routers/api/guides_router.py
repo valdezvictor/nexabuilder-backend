@@ -242,3 +242,60 @@ async def bulk_publish(x_admin_key: str = Header(...), bg: BackgroundTasks = Non
             bg.add_task(_deploy_guide, g["slug"], g)
 
     return {"published": len(guides), "slugs": [g["slug"] for g in guides]}
+
+
+
+@router.patch("/guides/{slug}")
+def update_guide(slug: str, data: dict, x_admin_key: str = Header(...)):
+    _require_admin(x_admin_key)
+    db = _db()
+    try:
+        row = db.execute(sqlt("SELECT id FROM seo_guide_pages WHERE slug=:s"), {"s": slug}).fetchone()
+        if not row:
+            raise HTTPException(404, "Guide not found")
+        allowed = {"title","category","status","target_meta_description","target_keywords","generated_html_body","needs_hero_image","needs_diagram"}
+        updates = {k: v for k, v in data.items() if k in allowed}
+        if not updates:
+            return {"slug": slug, "updated": []}
+        if "generated_html_body" in updates and updates["generated_html_body"]:
+            body = updates["generated_html_body"]
+            body = _re.sub(r'```html\s*\n?', '', body)
+            body = _re.sub(r'```\s*$', '', body)
+            body = body.strip()
+            updates["generated_html_body"] = body
+            updates["word_count"] = len(_re.sub(r"<[^>]+>", " ", body).split())
+        set_clauses = ", ".join(f"{k}=:{k}" for k in updates) + ", updated_at=NOW()"
+        params = dict(updates)
+        params["s"] = slug
+        db.execute(sqlt(f"UPDATE seo_guide_pages SET {set_clauses} WHERE slug=:s"), params)
+        db.commit()
+        return {"slug": slug, "updated": list(updates.keys())}
+    finally:
+        db.close()
+
+
+@router.post("/guides")
+def create_guide(data: dict, x_admin_key: str = Header(...)):
+    _require_admin(x_admin_key)
+    if not data or not data.get("slug") or not data.get("title"):
+        raise HTTPException(400, "slug and title are required")
+    slug = data["slug"].lower().strip().replace(" ", "-")
+    if not _re.match(r'^[a-z0-9-]+$', slug):
+        raise HTTPException(400, "Invalid slug")
+    db = _db()
+    try:
+        existing = db.execute(sqlt("SELECT id FROM seo_guide_pages WHERE slug=:s"), {"s": slug}).fetchone()
+        if existing:
+            raise HTTPException(409, "Guide slug already exists")
+        kw = data.get("target_keywords", [])
+        if isinstance(kw, str):
+            kw = [k.strip() for k in kw.split(",") if k.strip()]
+        db.execute(sqlt(
+            "INSERT INTO seo_guide_pages "
+            "(slug,title,category,status,target_keywords,target_meta_description,word_count,quality_score,created_at,updated_at) "
+            "VALUES (:slug,:title,:cat,'STUB',:kw,:meta,0,0,NOW(),NOW())"
+        ), {"slug": slug, "title": data["title"], "cat": data.get("category","how_to"), "kw": kw, "meta": data.get("target_meta_description","")})
+        db.commit()
+        return {"slug": slug, "title": data["title"], "status": "STUB", "created": True}
+    finally:
+        db.close()
